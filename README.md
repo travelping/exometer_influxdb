@@ -6,32 +6,32 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 
 1. Add exometer_influxdb to your list of dependencies in rebar.config:
 
-```erlang
-{deps, [
-    {exometer_influxdb, ".*", {git, "https://github.com/travelping/exometer_influxdb.git", "master"}}
-]}.
-```
+    ```erlang
+    {deps, [
+        {exometer_influxdb, ".*", {git, "https://github.com/travelping/exometer_influxdb.git", "master"}}
+    ]}.
+    ```
 
 2. Ensure exometer_influxdb is started before your application:
 
-```erlang
-{applications, [exometer_influxdb]}.
-```
+    ```erlang
+    {applications, [exometer_influxdb]}.
+    ```
 
 3. Configure it:
 
-```erlang
-{exometer, 
-    {reporters, [
-        {exometer_report_influxdb, [{protocol, http}, 
-                                    {host, <<"localhost">>},
-                                    {port, 9090},
-                                    {db, <<"exometer">>},
-                                    {precision, n},
-                                    {tags, [{region, ru}]}]}
-    ]}
-}.
-```
+    ```erlang
+    {exometer, 
+        {reporters, [
+            {exometer_report_influxdb, [{protocol, http}, 
+                                        {host, <<"localhost">>},
+                                        {port, 9090},
+                                        {db, <<"exometer">>},
+                                        {precision, n},
+                                        {tags, [{region, ru}]}]}
+        ]}
+    }.
+    ```
 
 Available options:
 
