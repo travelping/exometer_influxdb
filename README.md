@@ -1,4 +1,4 @@
-# Exometer InfluxDB reporter
+# Exometer InfluxDB reporter [![Build Status](https://travis-ci.org/surik/exometer_influxdb.svg)](https://travis-ci.org/surik/exometer_influxdb)
 
 This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 
