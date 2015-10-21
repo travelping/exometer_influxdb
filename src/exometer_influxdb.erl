@@ -69,7 +69,7 @@ exometer_init(Opts) ->
 exometer_report(Metric, DataPoint, Extra, Value, #state{tags = Tags} = State) ->
     ExtraTags = case Extra of undefined -> []; _ -> Extra end,
     Packet = make_packet(Metric, merge_tags(Tags, ExtraTags), 
-                         #{DataPoint => Value}, State#state.precision),
+                         maps:from_list([{DataPoint, Value}]), State#state.precision),
     send(Packet, State).
 
 -spec exometer_subscribe(exometer_report:metric(), 
