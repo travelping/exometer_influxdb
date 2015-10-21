@@ -23,12 +23,12 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 ```erlang
 {exometer, 
     {reporters, [
-        {exometer_influxdb, [{protocol, http}, 
-                             {host, <<"localhost">>},
-                             {port, 9090},
-                             {db, <<"exometer">>},
-                             {precision, n},
-                             {tags, [{region, ru}]}]}
+        {exometer_report_influxdb, [{protocol, http}, 
+                                    {host, <<"localhost">>},
+                                    {port, 9090},
+                                    {db, <<"exometer">>},
+                                    {precision, n},
+                                    {tags, [{region, ru}]}]}
     ]}
 }.
 ```
@@ -50,7 +50,7 @@ When you describe subscriptions list you can add tags to `Extra`. For example:
 ```erlang
 {exometer, 
     {subscriptions, [
-         {exometer_influxdb, [erlang, memory], total, 5000, true, [{tag, <<"value">>}]},
+         {exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tag, <<"value">>}]},
     ]}
 }.
 

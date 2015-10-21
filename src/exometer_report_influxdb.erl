@@ -1,4 +1,4 @@
--module(exometer_influxdb).
+-module(exometer_report_influxdb).
 
 -behaviour(exometer_report).
 
