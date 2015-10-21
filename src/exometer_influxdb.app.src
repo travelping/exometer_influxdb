@@ -1,0 +1,13 @@
+{application, exometer_influxdb,
+ [
+  {description, ""},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  hackney,
+                  exometer_core
+                 ]},
+  {env, []}
+ ]}.
