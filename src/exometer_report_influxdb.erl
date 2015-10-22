@@ -197,7 +197,8 @@ metric_elem_to_list(E) when is_integer(E) -> integer_to_list(E).
 -spec name(exometer_report:metric()) -> binary().
 name(Metric) -> iolist_to_binary(metric_to_string(Metric)).
 
--spec key(atom() | list() | binary()) -> binary().
+-spec key(integer() | atom() | list() | binary()) -> binary().
+key(K) when is_integer(K) -> key(integer_to_binary(K));
 key(K) when is_list(K) -> key(list_to_binary(K));
 key(K) when is_atom(K) -> key(atom_to_binary(K, utf8));
 key(K) -> 
@@ -205,7 +206,6 @@ key(K) ->
                    [global, {insert_replaced, 1}]).
 
 -spec value(any()) -> binary() | list().
-value(K) when is_atom(K) -> key(atom_to_binary(K, utf8));
 value(V) when is_integer(V) -> [integer_to_binary(V), $i];
 value(V) when is_float(V) -> float_to_binary(V);
 value(V) when is_atom(V) -> value(atom_to_binary(V, utf8));
