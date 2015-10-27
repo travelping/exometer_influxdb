@@ -160,28 +160,29 @@ get_opt(K, Opts, Default) ->
 
 -spec microsecs() -> integer().
 microsecs() ->
-    {MegaSecs, Secs, MicroSecs} = 
-        try erlang:timestamp()
-        catch error:undef -> apply(erlang, now, [])
-        end,
+    {MegaSecs, Secs, MicroSecs} = os:timestamp(),
     MegaSecs * 1000000 * 1000000 + Secs * 1000000 + MicroSecs.
 
--spec convert_time_unit(integer(), erlang:time_unit() | minute | hour) -> 
+-spec convert_time_unit(integer(), erlang:time_unit() | minutes | hours) -> 
     integer().
-convert_time_unit(MicroSecs, minute) -> 
+convert_time_unit(MicroSecs, hours) -> 
+    round(convert_time_unit(MicroSecs, minutes) / 60);
+convert_time_unit(MicroSecs, minutes) -> 
     round(convert_time_unit(MicroSecs, seconds) / 60);
-convert_time_unit(MicroSecs, hour) -> 
-    round(convert_time_unit(MicroSecs, seconds) / 3660);
-convert_time_unit(MicroSecs, To) -> 
-    erlang:convert_time_unit(MicroSecs, micro_seconds, To).
+convert_time_unit(MicroSecs, seconds) -> 
+    round(convert_time_unit(MicroSecs, milliseconds) / 1000);
+convert_time_unit(MicroSecs, milli_seconds) -> 
+    round(MicroSecs / 1000);
+convert_time_unit(MicroSecs, nano_seconds) -> 
+    MicroSecs * 1000.
 
 -spec unix_time(precision() | undefined) -> integer() | undefined.
 unix_time(n)  -> convert_time_unit(microsecs(), nano_seconds);
 unix_time(u)  -> microsecs();
-unix_time(ms) -> convert_time_unit(microsecs(), milli_second);
+unix_time(ms) -> convert_time_unit(microsecs(), milli_seconds);
 unix_time(s)  -> convert_time_unit(microsecs(), seconds);
-unix_time(m)  -> convert_time_unit(microsecs(), minute);
-unix_time(h)  -> convert_time_unit(microsecs(), hour);
+unix_time(m)  -> convert_time_unit(microsecs(), minutes);
+unix_time(h)  -> convert_time_unit(microsecs(), hours);
 unix_time(_)  -> undefined.
 
 -spec metric_to_string(list()) -> string().
