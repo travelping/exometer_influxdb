@@ -27,7 +27,6 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
                                         {host, <<"localhost">>},
                                         {port, 9090},
                                         {db, <<"exometer">>},
-                                        {precision, n},
                                         {tags, [{region, ru}]}]}
         ]}
     }.
@@ -35,14 +34,16 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 
 Available options:
 
-* __host__ - InfluxDB host. `127.0.01` by default.
+* __host__ - InfluxDB host. `127.0.0.1` by default.
 * __protocol__ - `http` or `udp` for operating with InfluxDB. `http` by default.
 * __port__ - InfluxDB port. `8086` by default.
 * __db__ - database on InfluxDB for writing data. `exometer` by default
 * __username__ - username for authorization on InfluxDB. __Not implemented yet__.
 * __password__ - password for authorization on InfluxDB. __Not implemented yet__.
-* __precision__ = [n,u,ms,s,m,h] - sets the precision of the supplied Unix time values. `u` by default.
+* __timestamping__ - enable timestamping, `false` by default.
 * __tags__ - list of default tags for each data point. Here always is `host` which local host name by default. 
+
+Timestamping is by default done by influxdb itself. To enable `timestamping` with the reporter you can use `true` or `{true, Precision}` where `Precision` is a unit taken from `[n,u,ms,s,m,h]`. The default unit is `u`.
 
 There is possibility to extend the default tags list which only has `host` by default. 
 When you describe subscriptions list you can add tags to `Extra`. For example:

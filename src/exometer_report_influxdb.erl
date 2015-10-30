@@ -22,17 +22,21 @@
 -define(DEFAULT_USERNAME, undefined).
 -define(DEFAULT_PASSWORD, undefined).
 -define(DEFAULT_PRECISION, u).
+-define(DEFAULT_TIMESTAMP_OPT, false).
+
+-define(VALID_PRECISIONS, [n, u, ms, s, m, h]).
 
 -type options() :: [{atom(), any()}].
 -type value() :: any().
 -type callback_result() :: {ok, state()} | any().
--type precision() :: n | u | ms | s | n | h.
+-type precision() :: n | u | ms | s | m | h.
 -type protocol() :: http | udp.
 
 -record(state, {protocol :: protocol(),
                 db :: binary(),
                 username :: undefined | binary(), % for http
                 password :: undefined | binary(), % for http
+                timestamping :: boolean(),
                 precision :: precision(),
                 tags :: map(),
                 connection :: gen_udp:socket() | reference()}).
@@ -50,13 +54,15 @@ exometer_init(Opts) ->
     DB = get_opt(db, Opts, ?DEFAULT_DB),
     Username = get_opt(username, Opts, ?DEFAULT_USERNAME),
     Password = get_opt(password, Opts, ?DEFAULT_PASSWORD),
-    Precision = get_opt(precision, Opts, ?DEFAULT_PRECISION),
+    TimestampOpt = get_opt(timestamping, Opts, ?DEFAULT_TIMESTAMP_OPT),
+    {Timestamping, Precision} = evaluate_timestamp_opt(TimestampOpt),
     Tags = [{key(Key), Value} || {Key, Value} <- get_opt(tags, Opts, [])],
     {ok, Connection} = connect(Protocol, Host, Port),
     {ok, #state{protocol = Protocol, 
                 db = DB, 
                 username = Username,
                 password = Password,
+                timestamping = Timestamping,
                 precision = Precision,
                 tags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags), 
                 connection = Connection}}.
@@ -69,7 +75,9 @@ exometer_init(Opts) ->
 exometer_report(Metric, DataPoint, Extra, Value, #state{tags = Tags} = State) ->
     ExtraTags = case Extra of undefined -> []; _ -> Extra end,
     Packet = make_packet(Metric, merge_tags(Tags, ExtraTags), 
-                         maps:from_list([{DataPoint, Value}]), State#state.precision),
+                         maps:from_list([{DataPoint, Value}]),
+                         State#state.timestamping,
+                         State#state.precision),
     send(Packet, State).
 
 -spec exometer_subscribe(exometer_report:metric(), 
@@ -127,9 +135,13 @@ connect(Protocol, _, _) -> {error, {Protocol, not_supported}}.
 -spec send(binary() | list(), state()) -> 
     {ok, state()} | {error, term()}.
 send(Packet, #state{protocol = http, connection= Connection,
-                    precision = Precision, db = DB} = State) ->
-    Url = hackney_url:make_url(<<"/">>, <<"write">>, 
-                               [{<<"db">>, DB}, {<<"precision">>, Precision}]),
+                    precision = Precision, db = DB,
+                    timestamping = Timestamping} = State) ->
+    QsVals = case Timestamping of
+                 false -> [{<<"db">>, DB}];
+                 true  -> [{<<"db">>, DB}, {<<"precision">>, Precision}]
+             end,
+    Url = hackney_url:make_url(<<"/">>, <<"write">>, QsVals),
     Req = {post, Url, [], Packet},
     case hackney:send_request(Connection, Req) of
         {ok, 204, _, Ref} -> 
@@ -170,7 +182,7 @@ convert_time_unit(MicroSecs, hours) ->
 convert_time_unit(MicroSecs, minutes) -> 
     round(convert_time_unit(MicroSecs, seconds) / 60);
 convert_time_unit(MicroSecs, seconds) -> 
-    round(convert_time_unit(MicroSecs, milliseconds) / 1000);
+    round(convert_time_unit(MicroSecs, milli_seconds) / 1000);
 convert_time_unit(MicroSecs, milli_seconds) -> 
     round(MicroSecs / 1000);
 convert_time_unit(MicroSecs, nano_seconds) -> 
@@ -227,10 +239,28 @@ flatten_tags(Tags) ->
                     [Acc, ?SEP(Acc), key(K), $=, key(V)]
                 end, [], lists:keysort(1, Tags)).
 
--spec make_packet(exometer_report:metric(), map() | list(), 
-                  list(), precision()) -> list().
-make_packet(Measurement, Tags, Fields, Precision) ->
+-spec make_packet(exometer_report:metric(), map() | list(),
+                  list(), boolean(), precision()) -> list().
+make_packet(Measurement, Tags, Fields, Timestamping, Precision) ->
     BinaryTags = flatten_tags(Tags),
     BinaryFields = flatten_fields(Fields),
-    [name(Measurement), ?SEP(BinaryTags), BinaryTags, " ", BinaryFields, 
-     " ", integer_to_binary(unix_time(Precision))].
+    case Timestamping of
+        false ->
+            [name(Measurement), ?SEP(BinaryTags), BinaryTags, " ",
+            BinaryFields, " "];
+        true ->
+            [name(Measurement), ?SEP(BinaryTags), BinaryTags, " ",
+            BinaryFields, " ", integer_to_binary(unix_time(Precision))]
+    end.
+
+-spec evaluate_timestamp_opt({boolean(), precision()} | boolean())
+                            -> {boolean(), precision()}.
+evaluate_timestamp_opt({Term, Precision}) when is_boolean(Term) ->
+    case lists:member(Precision, ?VALID_PRECISIONS) of
+        true -> {Term, Precision};
+        false -> exit(invalid_precision)
+    end;
+evaluate_timestamp_opt(Term) when is_boolean(Term) ->
+    {Term, ?DEFAULT_PRECISION};
+evaluate_timestamp_opt(_) ->
+    exit(invalid_timestamp_option).
