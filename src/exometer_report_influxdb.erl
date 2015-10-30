@@ -39,6 +39,7 @@
                 timestamping :: boolean(),
                 precision :: precision(),
                 tags :: map(),
+                metrics :: list(),
                 connection :: gen_udp:socket() | reference()}).
 -type state() :: #state{}.
 
@@ -65,6 +66,7 @@ exometer_init(Opts) ->
                 timestamping = Timestamping,
                 precision = Precision,
                 tags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags), 
+                metrics = maps:new(),
                 connection = Connection}}.
 
 -spec exometer_report(exometer_report:metric(),
@@ -72,12 +74,12 @@ exometer_init(Opts) ->
                       exometer_report:extra(),
                       value(),
                       state()) -> callback_result().
-exometer_report(Metric, DataPoint, Extra, Value, #state{tags = Tags} = State) ->
-    ExtraTags = case Extra of undefined -> []; _ -> Extra end,
-    Packet = make_packet(Metric, merge_tags(Tags, ExtraTags), 
-                         maps:from_list([{DataPoint, Value}]),
-                         State#state.timestamping,
-                         State#state.precision),
+exometer_report(Metric, DataPoint, _Extra, Value, 
+                #state{tags = DefaultTags, metrics = Metrics} = State) ->
+    {MetricName, SubscriberTags} = maps:get(Metric, Metrics),
+    Tags = merge_tags(DefaultTags, SubscriberTags),
+    Packet = make_packet(MetricName, Tags, maps:from_list([{DataPoint, Value}]),
+                         State#state.timestamping, State#state.precision),
     send(Packet, State).
 
 -spec exometer_subscribe(exometer_report:metric(), 
@@ -85,15 +87,23 @@ exometer_report(Metric, DataPoint, Extra, Value, #state{tags = Tags} = State) ->
                          exometer_report:interval(), 
                          exometer_report:extra(), 
                          state()) -> callback_result().
-exometer_subscribe(_Metric, _DataPoint, _Interval, _Extra, State) ->
-    {ok, State}.
+exometer_subscribe(Metric, _DataPoint, _Interval, TagOpts,
+                   #state{metrics=Metrics} = State) ->
+    {MetricName, SubscriberTags} = evaluate_subscription_tags(Metric, TagOpts),
+    case MetricName of
+        [] -> exit({invalid_metric_name, MetricName});
+        _  ->
+            NewMetrics = maps:put(Metric, {MetricName, SubscriberTags}, Metrics),
+            {ok, State#state{metrics = NewMetrics}}
+    end.
 
 -spec exometer_unsubscribe(exometer_report:metric(), 
                            exometer_report:datapoint(),
                            exometer_report:extra(), 
                            state()) -> callback_result().
-exometer_unsubscribe(_Metric, _DataPoint, _Extra, State) ->
-    {ok, State}.
+exometer_unsubscribe(Metric, _DataPoint, _Extra,
+                     #state{metrics = Metrics} = State) ->
+    {ok, State#state{metrics = maps:remove(Metric, Metrics)}}.
 
 -spec exometer_call(any(), pid(), state()) ->
     {reply, any(), state()} | {noreply, state()} | any().
@@ -264,3 +274,48 @@ evaluate_timestamp_opt(Term) when is_boolean(Term) ->
     {Term, ?DEFAULT_PRECISION};
 evaluate_timestamp_opt(_) ->
     exit(invalid_timestamp_option).
+
+-spec del_indices(list(), [integer()]) -> list().
+del_indices(List, Indices) ->
+    SortedIndices = lists:reverse(lists:usort(Indices)),
+    case length(SortedIndices) == length(Indices) of
+        true -> del_indices1(List, SortedIndices);
+        false -> exit({invalid_indices, Indices})
+    end.
+
+-spec del_indices1(list(), [integer()]) -> list().
+del_indices1(List, []) -> List;
+del_indices1([], Indices = [ _Index | _Indices1 ]) -> exit({too_many_indices, Indices});
+del_indices1(List, [Index | Indices]) when length(List) >= Index, Index > 0 ->
+    {L1, [_|L2]} = lists:split(Index-1, List),
+    del_indices1(L1 ++ L2, Indices);
+del_indices1(_List, Indices) ->
+    exit({invalid_indices, Indices}).
+
+-spec evaluate_subscription_tags(list(), [{atom(), value()}]) -> {list(), map()}.
+evaluate_subscription_tags(Metric, Tags) ->
+    evaluate_subscription_tags(Metric, Tags, [], []).
+
+-spec evaluate_subscription_tags(list(), [{atom(), value()}], [{atom(), value()}],
+                                 [integer()]) -> {list(), map()}.
+evaluate_subscription_tags(Metric, [], TagAkk, PosAkk) ->
+    MetricName = del_indices(Metric, PosAkk),
+    {MetricName, maps:from_list(TagAkk)};
+evaluate_subscription_tags(Metric, [{Key, {from_name, Pos}} | TagOpts], TagAkk, PosAkk)
+    when is_number(Pos), length(Metric) >= Pos, Pos > 0 ->
+    NewTagAkk = TagAkk ++ [{Key, lists:nth(Pos, Metric)}],
+    NewPosAkk = PosAkk ++ [Pos],
+    evaluate_subscription_tags(Metric, TagOpts, NewTagAkk, NewPosAkk);
+evaluate_subscription_tags(Metric, [TagOpt = {Key, {from_name, Name}} | TagOpts],
+    TagAkk, PosAkk) ->
+    case string:str(Metric, [Name]) of
+        0     -> exit({invalid_tag_option, TagOpt});
+        Index ->
+            NewTagAkk = TagAkk ++ [{Key, Name}],
+            NewPosAkk = PosAkk ++ [Index],
+            evaluate_subscription_tags(Metric, TagOpts, NewTagAkk, NewPosAkk)
+    end;
+evaluate_subscription_tags(Metric, [Tag = {_Key, _Value} | Tags], TagAkk, PosAkk) ->
+    evaluate_subscription_tags(Metric, Tags, TagAkk ++ [Tag], PosAkk);
+evaluate_subscription_tags(_Metric, [Tag | _] , _TagAkk, _PosAkk) ->
+    exit({invalid_tag_option, Tag}).
