@@ -292,7 +292,10 @@ del_indices1(List, [Index | Indices]) when length(List) >= Index, Index > 0 ->
 del_indices1(_List, Indices) ->
     exit({invalid_indices, Indices}).
 
--spec evaluate_subscription_tags(list(), [{atom(), value()}]) -> {list(), map()}.
+-spec evaluate_subscription_tags(list(), undefined | [{atom(), value()}]) -> 
+    {list(), map()}.
+evaluate_subscription_tags(Metric, undefined) -> 
+    evaluate_subscription_tags(Metric, []);
 evaluate_subscription_tags(Metric, Tags) ->
     evaluate_subscription_tags(Metric, Tags, [], []).
 
