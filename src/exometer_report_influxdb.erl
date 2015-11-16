@@ -138,6 +138,7 @@ exometer_terminate(_, _) ->
 -spec connect(protocol(), binary(), integer()) -> 
     {ok, pid() | reference()} | {error, term()}.
 connect(http, Host, Port) ->
+    {ok, _} = application:ensure_all_started(hackney),
     hackney:connect(hackney_tcp_transport, Host, Port, []);
 connect(udp, _, _) -> {error, {udp, not_implemented}};
 connect(Protocol, _, _) -> {error, {Protocol, not_supported}}.
