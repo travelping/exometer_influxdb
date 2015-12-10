@@ -38,8 +38,8 @@ Available options:
 * __protocol__ - `http` or `udp` for operating with InfluxDB. `http` by default.
 * __port__ - InfluxDB port. `8086` by default.
 * __db__ - database on InfluxDB for writing data. `exometer` by default
-* __username__ - username for authorization on InfluxDB. __Not implemented yet__.
-* __password__ - password for authorization on InfluxDB. __Not implemented yet__.
+* __username__ - username for authorization on InfluxDB.
+* __password__ - password for authorization on InfluxDB.
 * __timestamping__ - enable timestamping, `false` by default.
 * __tags__ - list of default tags for each data point. The `host` is automatically included here. 
 
@@ -66,6 +66,5 @@ This will result in a name `erlang` with the tag pair `{tag, memory}` (plus the 
 # TODO
 
 * UDP support
-* Auth support
 * Tests 
 * Reconfiguration on runtime
