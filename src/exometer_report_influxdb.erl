@@ -35,9 +35,11 @@
 -type protocol() :: http | udp.
 
 -record(state, {protocol :: protocol(),
-                db :: binary(),
+                db :: binary(), % for http
                 username :: undefined | binary(), % for http
                 password :: undefined | binary(), % for http
+                host :: inet:ip_address() | inet:hostname(), % for udp
+                port :: inet:port_number(),  % for udp
                 timestamping :: boolean(),
                 precision :: precision(),
                 tags :: map(),
@@ -65,6 +67,8 @@ exometer_init(Opts) ->
                 db = DB, 
                 username = Username,
                 password = Password,
+                host = binary_to_list(Host),
+                port = Port,
                 timestamping = Timestamping,
                 precision = Precision,
                 tags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags), 
@@ -152,7 +156,7 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
         https -> http_ssl_transport
     end,
     hackney:connect(Transport, Host, Port, Options);
-connect(udp, _, _, _, _) -> {error, {udp, not_implemented}};
+connect(udp, _, _, _, _) -> gen_udp:open(0);
 connect(Protocol, _, _, _, _) -> {error, {Protocol, not_supported}}.
 
 -spec send(binary() | list(), state()) -> 
@@ -175,7 +179,12 @@ send(Packet, #state{protocol = http, connection= Connection,
             {error, Body};
         {error, _} = Error -> Error
     end;
-send(_, #state{protocol = udp}) -> {error, {udp, not_implemented}};
+send(Packet, #state{protocol = udp, connection = Socket, 
+                    host = Host, port = Port} = State) -> 
+    case gen_udp:send(Socket, Host, Port, Packet) of
+        ok -> {ok, State};
+        Error -> Error
+    end;
 send(_, #state{protocol = Protocol}) -> {error, {Protocol, not_supported}}.
 
 -spec merge_tags(list() | map(), list() | map()) -> map().
