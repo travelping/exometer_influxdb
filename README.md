@@ -65,6 +65,5 @@ This will result in a name `erlang` with the tag pair `{tag, memory}` (plus the 
 
 # TODO
 
-* UDP support
 * Tests 
 * Reconfiguration on runtime
