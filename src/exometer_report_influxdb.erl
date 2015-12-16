@@ -26,6 +26,8 @@
 
 -define(VALID_PRECISIONS, [n, u, ms, s, m, h]).
 
+-define(HTTP(Proto), (Proto =:= http orelse Proto =:= https)).
+
 -type options() :: [{atom(), any()}].
 -type value() :: any().
 -type callback_result() :: {ok, state()} | any().
@@ -58,7 +60,7 @@ exometer_init(Opts) ->
     TimestampOpt = get_opt(timestamping, Opts, ?DEFAULT_TIMESTAMP_OPT),
     {Timestamping, Precision} = evaluate_timestamp_opt(TimestampOpt),
     Tags = [{key(Key), Value} || {Key, Value} <- get_opt(tags, Opts, [])],
-    {ok, Connection} = connect(Protocol, Host, Port),
+    {ok, Connection} = connect(Protocol, Host, Port, Username, Password),
     {ok, #state{protocol = Protocol, 
                 db = DB, 
                 username = Username,
@@ -135,13 +137,23 @@ exometer_terminate(_, _) ->
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
--spec connect(protocol(), binary(), integer()) -> 
+-spec connect(protocol(), binary(), integer(), 
+              undefined | iodata(), undefined | iodata()) -> 
     {ok, pid() | reference()} | {error, term()}.
-connect(http, Host, Port) ->
+connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
     {ok, _} = application:ensure_all_started(hackney),
-    hackney:connect(hackney_tcp_transport, Host, Port, []);
-connect(udp, _, _) -> {error, {udp, not_implemented}};
-connect(Protocol, _, _) -> {error, {Protocol, not_supported}}.
+    Options = case {Username, Password} of
+        {undefined, _} -> [];
+        {_, undefined} -> [];
+        _ -> [{basic_auth, {Username, Password}}]
+    end,
+    Transport = case Proto of
+        http -> hackney_tcp_transport;
+        https -> http_ssl_transport
+    end,
+    hackney:connect(Transport, Host, Port, Options);
+connect(udp, _, _, _, _) -> {error, {udp, not_implemented}};
+connect(Protocol, _, _, _, _) -> {error, {Protocol, not_supported}}.
 
 -spec send(binary() | list(), state()) -> 
     {ok, state()} | {error, term()}.
