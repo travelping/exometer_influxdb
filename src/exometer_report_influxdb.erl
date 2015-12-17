@@ -28,6 +28,8 @@
 
 -define(HTTP(Proto), (Proto =:= http orelse Proto =:= https)).
 
+-include("log.hrl").
+
 -type options() :: [{atom(), any()}].
 -type value() :: any().
 -type callback_result() :: {ok, state()} | any().
@@ -62,18 +64,25 @@ exometer_init(Opts) ->
     TimestampOpt = get_opt(timestamping, Opts, ?DEFAULT_TIMESTAMP_OPT),
     {Timestamping, Precision} = evaluate_timestamp_opt(TimestampOpt),
     Tags = [{key(Key), Value} || {Key, Value} <- get_opt(tags, Opts, [])],
-    {ok, Connection} = connect(Protocol, Host, Port, Username, Password),
-    {ok, #state{protocol = Protocol, 
-                db = DB, 
-                username = Username,
-                password = Password,
-                host = binary_to_list(Host),
-                port = Port,
-                timestamping = Timestamping,
-                precision = Precision,
-                tags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags), 
-                metrics = maps:new(),
-                connection = Connection}}.
+    case connect(Protocol, Host, Port, Username, Password) of
+        {ok, Connection} -> 
+            ?info("InfluxDB reporter connecting success: ~p", [Opts]),
+            MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
+            {ok, #state{protocol = Protocol, 
+                        db = DB, 
+                        username = Username,
+                        password = Password,
+                        host = binary_to_list(Host),
+                        port = Port,
+                        timestamping = Timestamping,
+                        precision = Precision,
+                        tags = MergedTags, 
+                        metrics = maps:new(),
+                        connection = Connection}};
+        Error -> 
+            ?error("InfluxDB reporter connecting error: ~p", [Error]),
+            Error
+    end.
 
 -spec exometer_report(exometer_report:metric(),
                       exometer_report:datapoint(),
@@ -81,11 +90,20 @@ exometer_init(Opts) ->
                       value(),
                       state()) -> callback_result().
 exometer_report(Metric, DataPoint, _Extra, Value, 
-                #state{metrics = Metrics} = State) ->
-    {MetricName, Tags} = maps:get(Metric, Metrics),
-    Packet = make_packet(MetricName, Tags, maps:from_list([{DataPoint, Value}]),
-                         State#state.timestamping, State#state.precision),
-    send(Packet, State).
+                #state{metrics = Metrics, 
+                       timestamping = Timestamping,
+                       precision = Precision} = State) ->
+    case maps:get(Metric, Metrics) of
+        {MetricName, Tags} ->
+            Packet = make_packet(MetricName, Tags, 
+                                 maps:from_list([{DataPoint, Value}]),
+                                 Timestamping, Precision),
+            send(Packet, State);
+        Error -> 
+            ?warning("InfluxDB reporter got touble when looking metric's tag: ~p", 
+                     [Error]),
+            Error
+    end.
 
 -spec exometer_subscribe(exometer_report:metric(), 
                          exometer_report:datapoint(),
@@ -134,7 +152,8 @@ exometer_setopts(_Metric, _Options, _Status, State) ->
     {ok, State}.
 
 -spec exometer_terminate(any(), state()) -> any().
-exometer_terminate(_, _) ->
+exometer_terminate(Reason, _) ->
+    ?info("InfluxDB reporter is terminating with reason: ~p~n", [Reason]),
     ignore.
 
 
@@ -174,16 +193,22 @@ send(Packet, #state{protocol = http, connection= Connection,
         {ok, 204, _, Ref} -> 
             hackney:body(Ref),
             {ok, State};
-        {ok, _, _Headers, Ref} ->
+        {ok, Status, _Headers, Ref} ->
             {ok, Body} = hackney:body(Ref),
+            ?warning("InfluxDB reporter got unexpected response with code ~p"
+                     " and body: ~p", [Status, Body]),
             {error, Body};
-        {error, _} = Error -> Error
+        {error, _} = Error -> 
+            ?error("InfluxDB reporter HTTP sending error: ~p", [Error]),
+            Error
     end;
 send(Packet, #state{protocol = udp, connection = Socket, 
                     host = Host, port = Port} = State) -> 
     case gen_udp:send(Socket, Host, Port, Packet) of
         ok -> {ok, State};
-        Error -> Error
+        Error -> 
+            ?error("InfluxDB reporter UDP sending error: ~p", [Error]),
+            Error
     end;
 send(_, #state{protocol = Protocol}) -> {error, {Protocol, not_supported}}.
 
