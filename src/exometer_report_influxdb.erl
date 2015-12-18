@@ -98,7 +98,7 @@ exometer_report(Metric, DataPoint, _Extra, Value,
                 #state{metrics = Metrics, 
                        timestamping = Timestamping,
                        precision = Precision} = State) ->
-    case maps:get(Metric, Metrics) of
+    case maps:get(Metric, Metrics, not_found) of
         {MetricName, Tags} ->
             Packet = make_packet(MetricName, Tags, 
                                  maps:from_list([{DataPoint, Value}]),
