@@ -64,24 +64,25 @@ exometer_init(Opts) ->
     TimestampOpt = get_opt(timestamping, Opts, ?DEFAULT_TIMESTAMP_OPT),
     {Timestamping, Precision} = evaluate_timestamp_opt(TimestampOpt),
     Tags = [{key(Key), Value} || {Key, Value} <- get_opt(tags, Opts, [])],
+    MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
+    State =  #state{protocol = Protocol, 
+                    db = DB, 
+                    username = Username,
+                    password = Password,
+                    host = binary_to_list(Host),
+                    port = Port,
+                    timestamping = Timestamping,
+                    precision = Precision,
+                    tags = MergedTags, 
+                    metrics = maps:new()},
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} -> 
             ?info("InfluxDB reporter connecting success: ~p", [Opts]),
-            MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
-            {ok, #state{protocol = Protocol, 
-                        db = DB, 
-                        username = Username,
-                        password = Password,
-                        host = binary_to_list(Host),
-                        port = Port,
-                        timestamping = Timestamping,
-                        precision = Precision,
-                        tags = MergedTags, 
-                        metrics = maps:new(),
-                        connection = Connection}};
+            {ok, State#state{connection = Connection}};
         Error -> 
             ?error("InfluxDB reporter connecting error: ~p", [Error]),
-            Error
+            prepare_reconnect(),
+            {ok, State}
     end.
 
 -spec exometer_report(exometer_report:metric(),
@@ -89,6 +90,10 @@ exometer_init(Opts) ->
                       exometer_report:extra(),
                       value(),
                       state()) -> callback_result().
+exometer_report(_Metric, _DataPoint, _Extra, _Value, 
+                #state{connection = undefined} = State) ->
+    ?debug("InfluxDB reporter isn't connected and will reconnect."), 
+    {ok, State};
 exometer_report(Metric, DataPoint, _Extra, Value, 
                 #state{metrics = Metrics, 
                        timestamping = Timestamping,
@@ -139,6 +144,8 @@ exometer_cast(_Unknown, State) ->
     {ok, State}.
 
 -spec exometer_info(any(), state()) -> callback_result().
+exometer_info({exometer_influxdb, reconnect}, State) ->
+    reconnect(State);
 exometer_info(_Unknown, State) ->
     {ok, State}.
 
@@ -178,6 +185,23 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
 connect(udp, _, _, _, _) -> gen_udp:open(0);
 connect(Protocol, _, _, _, _) -> {error, {Protocol, not_supported}}.
 
+-spec reconnect(state()) -> {ok, state()}.
+reconnect(#state{protocol = Protocol, host = Host, port = Port,
+                 username = Username, password = Password} = State) ->
+    case connect(Protocol, Host, Port, Username, Password) of
+        {ok, Connection} -> 
+            ?info("InfluxDB reporter reconnecting success: ~p", 
+                  [{Protocol, Host, Port, Username, Password}]),
+            {ok, State#state{connection = Connection}};
+        Error -> 
+            ?error("InfluxDB reporter reconnecting error: ~p", [Error]),
+            prepare_reconnect(),
+            {ok, State#state{connection = undefined}}
+    end.
+
+prepare_reconnect() ->
+    erlang:send_after(1000, self(), {exometer_influxdb, reconnect}).
+
 -spec send(binary() | list(), state()) -> 
     {ok, state()} | {error, term()}.
 send(Packet, #state{protocol = http, connection= Connection,
@@ -200,7 +224,7 @@ send(Packet, #state{protocol = http, connection= Connection,
             {error, Body};
         {error, _} = Error -> 
             ?error("InfluxDB reporter HTTP sending error: ~p", [Error]),
-            Error
+            reconnect(State)
     end;
 send(Packet, #state{protocol = udp, connection = Socket, 
                     host = Host, port = Port} = State) -> 
@@ -208,7 +232,7 @@ send(Packet, #state{protocol = udp, connection = Socket,
         ok -> {ok, State};
         Error -> 
             ?error("InfluxDB reporter UDP sending error: ~p", [Error]),
-            Error
+            reconnect(State)
     end;
 send(_, #state{protocol = Protocol}) -> {error, {Protocol, not_supported}}.
 
