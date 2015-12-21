@@ -42,6 +42,7 @@ Available options:
 * __password__ - password for authorization on InfluxDB.
 * __timestamping__ - enable timestamping, `false` by default.
 * __tags__ - list of default tags for each data point. The `host` is automatically included here. 
+* __batch_window_size__ - set window size in ms for batch sending. This means reported will collect measurements within this interval and send all measurements in one packet. `0` by default. 
 
 Timestamping is by default done by influxdb itself. To enable `timestamping` with the reporter you can use `true` or `{true, Precision}` where `Precision` is a unit taken from `[n,u,ms,s,m,h]`. The default unit is `u`.
 
@@ -66,5 +67,4 @@ This will result in a name `erlang` with the tag pair `{tag, memory}` (plus the 
 # TODO
 
 * Tests 
-* Batch sending
 * Reconfiguration on runtime
