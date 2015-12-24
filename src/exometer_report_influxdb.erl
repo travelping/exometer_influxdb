@@ -103,7 +103,8 @@ exometer_report(Metric, DataPoint, _Extra, Value,
                 #state{metrics = Metrics} = State) ->
     case maps:get(Metric, Metrics, not_found) of
         {MetricName, Tags} ->
-            maybe_send(MetricName, Tags, maps:from_list([{DataPoint, Value}]), State);
+            maybe_send(Metric, MetricName, Tags, 
+                       maps:from_list([{DataPoint, Value}]), State);
         Error -> 
             ?warning("InfluxDB reporter got trouble when looking ~p metric's tag: ~p", 
                      [Metric, Error]),
@@ -151,10 +152,11 @@ exometer_info({exometer_influxdb, send},
                      precision = Precision,
                      collected_metrics = CollectedMetrics} = State) ->
     if CollectedMetrics /= #{} ->
-        ?debug("InfluxDB reporter send packet with ~p measurements", [maps:size(CollectedMetrics)]),
-        Packets1 = [make_packet(Key, Tags, Fileds, Timestamping, Precision) ++ "\n"
-                    || {Key, {Tags, Fileds}} <- maps:to_list(CollectedMetrics)],
-        send(Packets1, State#state{collected_metrics = #{}});
+        ?debug("InfluxDB reporter send packet with ~p measurements", 
+               [maps:size(CollectedMetrics)]),
+        Packets = [make_packet(MetricName, Tags, Fileds, Timestamping, Precision) ++ "\n"
+                   || {_, {MetricName, Tags, Fileds}} <- maps:to_list(CollectedMetrics)],
+        send(Packets, State#state{collected_metrics = #{}});
     true -> {ok, State}   
     end;
 exometer_info(_Unknown, State) ->
@@ -216,20 +218,22 @@ prepare_batch_send(Time) ->
 prepare_reconnect() ->
     erlang:send_after(1000, self(), {exometer_influxdb, reconnect}).
 
--spec maybe_send(binary() | list(), map(), map(), state()) -> 
+-spec maybe_send(list(), list(), map(), map(), state()) -> 
     {ok, state()} | {error, term()}.
-maybe_send(MetricName, Tags, Fields, #state{batch_window_size = BatchWinSize, 
-                                            collected_metrics = CollectedMetrics} = State)
+maybe_send(OriginMetricName, MetricName, Tags0, Fields, 
+           #state{batch_window_size = BatchWinSize, 
+                  collected_metrics = CollectedMetrics} = State)
   when BatchWinSize > 0 ->
-    NewPackets = case maps:get(MetricName, CollectedMetrics, not_found) of
-                     {_, Fields1} -> 
-                         NewFields = maps:merge(Fields, Fields1),
-                         maps:put(MetricName, {Tags, NewFields}, CollectedMetrics);
-                     not_found -> maps:put(MetricName, {Tags, Fields}, CollectedMetrics)
-                 end,
+    NewCollectedMetrics = case maps:get(OriginMetricName, CollectedMetrics, not_found) of
+        {MetricName, Tags, Fields1} -> 
+            NewFields = maps:merge(Fields, Fields1),
+            maps:put(OriginMetricName, {MetricName, Tags, NewFields}, CollectedMetrics);
+        not_found -> 
+            maps:put(OriginMetricName, {MetricName, Tags0, Fields}, CollectedMetrics)
+    end,
     maps:size(CollectedMetrics) == 0 andalso prepare_batch_send(BatchWinSize),
-    {ok, State#state{collected_metrics = NewPackets}};
-maybe_send(MetricName, Tags, Fields, 
+    {ok, State#state{collected_metrics = NewCollectedMetrics}};
+maybe_send(_, MetricName, Tags, Fields, 
            #state{timestamping = Timestamping, precision = Precision} = State) ->
     Packet = make_packet(MetricName, Tags, Fields, Timestamping, Precision),
     send(Packet, State).
