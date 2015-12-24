@@ -192,7 +192,7 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
     end,
     Transport = case Proto of
         http -> hackney_tcp_transport;
-        https -> http_ssl_transport
+        https -> hackney_ssl_transport
     end,
     hackney:connect(Transport, Host, Port, Options);
 connect(udp, _, _, _, _) -> gen_udp:open(0);
