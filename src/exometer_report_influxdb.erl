@@ -256,8 +256,8 @@ send(Packet, #state{protocol = http, connection= Connection,
         {ok, Status, _Headers, Ref} ->
             {ok, Body} = hackney:body(Ref),
             ?warning("InfluxDB reporter got unexpected response with code ~p"
-                     " and body: ~p", [Status, Body]),
-            {error, Body};
+                     " and body: ~p. Reconnecting ...", [Status, Body]),
+            reconnect(State);
         {error, _} = Error -> 
             ?error("InfluxDB reporter HTTP sending error: ~p", [Error]),
             reconnect(State)
