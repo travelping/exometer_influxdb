@@ -189,7 +189,7 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
         {undefined, _} -> [];
         {_, undefined} -> [];
         _ -> [{basic_auth, {Username, Password}}]
-    end,
+    end ++ [{pool, false}],
     Transport = case Proto of
         http -> hackney_tcp_transport;
         https -> hackney_ssl_transport
