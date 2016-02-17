@@ -1,7 +1,7 @@
 {application, exometer_influxdb,
  [
   {description, "InfluxDB reporrter for exometer"},
-  {vsn, "0.4.1"},
+  {vsn, git},
   {registered, []},
   {applications, [
                   kernel,
