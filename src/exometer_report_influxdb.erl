@@ -29,7 +29,7 @@
 
 -define(HTTP(Proto), (Proto =:= http orelse Proto =:= https)).
 
--include("log.hrl").
+-include_lib("hut/include/hut.hrl").
 
 -type options() :: [{atom(), any()}].
 -type value() :: any().
@@ -82,10 +82,10 @@ exometer_init(Opts) ->
                     metrics = maps:new()},
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} -> 
-            ?info("InfluxDB reporter connecting success: ~p", [Opts]),
+            ?log(info, "InfluxDB reporter connecting success: ~p", [Opts]),
             {ok, State#state{connection = Connection}};
         Error -> 
-            ?error("InfluxDB reporter connecting error: ~p", [Error]),
+            ?log(error, "InfluxDB reporter connecting error: ~p", [Error]),
             prepare_reconnect(),
             {ok, State}
     end.
@@ -97,7 +97,7 @@ exometer_init(Opts) ->
                       state()) -> callback_result().
 exometer_report(_Metric, _DataPoint, _Extra, _Value, 
                 #state{connection = undefined} = State) ->
-    ?debug("InfluxDB reporter isn't connected and will reconnect."), 
+    ?log(debug, "InfluxDB reporter isn't connected and will reconnect."), 
     {ok, State};
 exometer_report(Metric, DataPoint, _Extra, Value, 
                 #state{metrics = Metrics} = State) ->
@@ -106,8 +106,8 @@ exometer_report(Metric, DataPoint, _Extra, Value,
             maybe_send(Metric, MetricName, Tags, 
                        maps:from_list([{DataPoint, Value}]), State);
         Error -> 
-            ?warning("InfluxDB reporter got trouble when looking ~p metric's tag: ~p", 
-                     [Metric, Error]),
+            ?log(warning, "InfluxDB reporter got trouble when looking ~p metric's tag: ~p", 
+                 [Metric, Error]),
             Error
     end.
 
@@ -152,8 +152,8 @@ exometer_info({exometer_influxdb, send},
                      precision = Precision,
                      collected_metrics = CollectedMetrics} = State) ->
     if CollectedMetrics /= #{} ->
-        ?debug("InfluxDB reporter send packet with ~p measurements", 
-               [maps:size(CollectedMetrics)]),
+        ?log(debug, "InfluxDB reporter send packet with ~p measurements", 
+             [maps:size(CollectedMetrics)]),
         Packets = [make_packet(MetricName, Tags, Fileds, Timestamping, Precision) ++ "\n"
                    || {_, {MetricName, Tags, Fileds}} <- maps:to_list(CollectedMetrics)],
         send(Packets, State#state{collected_metrics = #{}});
@@ -173,7 +173,7 @@ exometer_setopts(_Metric, _Options, _Status, State) ->
 
 -spec exometer_terminate(any(), state()) -> any().
 exometer_terminate(Reason, _) ->
-    ?info("InfluxDB reporter is terminating with reason: ~p~n", [Reason]),
+    ?log(info, "InfluxDB reporter is terminating with reason: ~p~n", [Reason]),
     ignore.
 
 
@@ -203,11 +203,11 @@ reconnect(#state{protocol = Protocol, host = Host, port = Port,
                  username = Username, password = Password} = State) ->
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} -> 
-            ?info("InfluxDB reporter reconnecting success: ~p", 
-                  [{Protocol, Host, Port, Username, Password}]),
+            ?log(info, "InfluxDB reporter reconnecting success: ~p", 
+                 [{Protocol, Host, Port, Username, Password}]),
             {ok, State#state{connection = Connection}};
         Error -> 
-            ?error("InfluxDB reporter reconnecting error: ~p", [Error]),
+            ?log(error, "InfluxDB reporter reconnecting error: ~p", [Error]),
             prepare_reconnect(),
             {ok, State#state{connection = undefined}}
     end.
@@ -255,11 +255,11 @@ send(Packet, #state{protocol = http, connection= Connection,
             {ok, State};
         {ok, Status, _Headers, Ref} ->
             {ok, Body} = hackney:body(Ref),
-            ?warning("InfluxDB reporter got unexpected response with code ~p"
-                     " and body: ~p. Reconnecting ...", [Status, Body]),
+            ?log(warning, "InfluxDB reporter got unexpected response with code ~p"
+                          " and body: ~p. Reconnecting ...", [Status, Body]),
             reconnect(State);
         {error, _} = Error -> 
-            ?error("InfluxDB reporter HTTP sending error: ~p", [Error]),
+            ?log(error, "InfluxDB reporter HTTP sending error: ~p", [Error]),
             reconnect(State)
     end;
 send(Packet, #state{protocol = udp, connection = Socket, 
@@ -267,7 +267,7 @@ send(Packet, #state{protocol = udp, connection = Socket,
     case gen_udp:send(Socket, Host, Port, Packet) of
         ok -> {ok, State};
         Error -> 
-            ?error("InfluxDB reporter UDP sending error: ~p", [Error]),
+            ?log(error, "InfluxDB reporter UDP sending error: ~p", [Error]),
             reconnect(State)
     end;
 send(_, #state{protocol = Protocol}) -> {error, {Protocol, not_supported}}.
