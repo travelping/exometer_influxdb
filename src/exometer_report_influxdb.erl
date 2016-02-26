@@ -16,7 +16,7 @@
 
 
 -ifdef(TEST).
--export([evaluate_subscription_tags/2,
+-export([evaluate_subscription_options/5,
          make_packet/5]).
 -endif.
 
@@ -28,6 +28,8 @@
 -define(DEFAULT_USERNAME, undefined).
 -define(DEFAULT_PASSWORD, undefined).
 -define(DEFAULT_PRECISION, u).
+-define(DEFAULT_SERIES_NAME, undefined).
+-define(DEFAULT_FORMATTING, []).
 -define(DEFAULT_TIMESTAMP_OPT, false).
 -define(DEFAULT_BATCH_WINDOW_SIZE, 0).
 
@@ -54,6 +56,8 @@
                 collected_metrics = #{} :: map(),
                 batch_window_size = 0 :: integer(),
                 tags :: map(),
+                series_name :: atom(),
+                formatting :: list(),
                 metrics :: map(),
                 connection :: gen_udp:socket() | reference()}).
 -type state() :: #state{}.
@@ -74,23 +78,27 @@ exometer_init(Opts) ->
     BatchWinSize = get_opt(batch_window_size, Opts, ?DEFAULT_BATCH_WINDOW_SIZE),
     {Timestamping, Precision} = evaluate_timestamp_opt(TimestampOpt),
     Tags = [{key(Key), Value} || {Key, Value} <- get_opt(tags, Opts, [])],
+    SeriesName = get_opt(series_name, Opts, ?DEFAULT_SERIES_NAME),
+    Formatting = get_opt(formatting, Opts, ?DEFAULT_FORMATTING),
     MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
-    State =  #state{protocol = Protocol, 
-                    db = DB, 
+    State =  #state{protocol = Protocol,
+                    db = DB,
                     username = Username,
                     password = Password,
                     host = binary_to_list(Host),
                     port = Port,
                     timestamping = Timestamping,
                     precision = Precision,
-                    tags = MergedTags, 
+                    tags = MergedTags,
+                    series_name = SeriesName,
+                    formatting = Formatting,
                     batch_window_size = BatchWinSize,
                     metrics = maps:new()},
     case connect(Protocol, Host, Port, Username, Password) of
-        {ok, Connection} -> 
+        {ok, Connection} ->
             ?info("InfluxDB reporter connecting success: ~p", [Opts]),
             {ok, State#state{connection = Connection}};
-        Error -> 
+        Error ->
             ?error("InfluxDB reporter connecting error: ~p", [Error]),
             prepare_reconnect(),
             {ok, State}
@@ -101,31 +109,33 @@ exometer_init(Opts) ->
                       exometer_report:extra(),
                       value(),
                       state()) -> callback_result().
-exometer_report(_Metric, _DataPoint, _Extra, _Value, 
+exometer_report(_Metric, _DataPoint, _Extra, _Value,
                 #state{connection = undefined} = State) ->
-    ?debug("InfluxDB reporter isn't connected and will reconnect."), 
+    ?debug("InfluxDB reporter isn't connected and will reconnect."),
     {ok, State};
-exometer_report(Metric, DataPoint, _Extra, Value, 
+exometer_report(Metric, DataPoint, _Extra, Value,
                 #state{metrics = Metrics} = State) ->
     case maps:get(Metric, Metrics, not_found) of
         {MetricName, Tags} ->
-            maybe_send(Metric, MetricName, Tags, 
+            maybe_send(Metric, MetricName, Tags,
                        maps:from_list([{DataPoint, Value}]), State);
-        Error -> 
-            ?warning("InfluxDB reporter got trouble when looking ~p metric's tag: ~p", 
+        Error ->
+            ?warning("InfluxDB reporter got trouble when looking ~p metric's tag: ~p",
                      [Metric, Error]),
             Error
     end.
 
--spec exometer_subscribe(exometer_report:metric(), 
+-spec exometer_subscribe(exometer_report:metric(),
                          exometer_report:datapoint(),
-                         exometer_report:interval(), 
-                         exometer_report:extra(), 
+                         exometer_report:interval(),
+                         exometer_report:extra(),
                          state()) -> callback_result().
-exometer_subscribe(Metric, _DataPoint, _Interval, TagOpts,
-                   #state{metrics=Metrics, tags=DefaultTags} = State) ->
-    {MetricName, SubscriberTags} = evaluate_subscription_tags(Metric, TagOpts),
-    Tags = merge_tags(DefaultTags, SubscriberTags),
+exometer_subscribe(Metric, _DataPoint, _Interval, SubscribeOpts,
+                   #state{metrics=Metrics, tags=DefaultTags,
+                          series_name=DefaultSeriesName,
+                          formatting=DefaultFormatting} = State) ->
+    {MetricName, Tags} = evaluate_subscription_options(Metric, SubscribeOpts, DefaultTags,
+                                                       DefaultSeriesName, DefaultFormatting),
     case MetricName of
         [] -> exit({invalid_metric_name, MetricName});
         _  ->
@@ -133,9 +143,9 @@ exometer_subscribe(Metric, _DataPoint, _Interval, TagOpts,
             {ok, State#state{metrics = NewMetrics}}
     end.
 
--spec exometer_unsubscribe(exometer_report:metric(), 
+-spec exometer_unsubscribe(exometer_report:metric(),
                            exometer_report:datapoint(),
-                           exometer_report:extra(), 
+                           exometer_report:extra(),
                            state()) -> callback_result().
 exometer_unsubscribe(Metric, _DataPoint, _Extra,
                      #state{metrics = Metrics} = State) ->
@@ -157,13 +167,13 @@ exometer_info({exometer_influxdb, send},
               #state{precision = Precision,
                      collected_metrics = CollectedMetrics} = State) ->
     if CollectedMetrics /= #{} ->
-        ?debug("InfluxDB reporter send packet with ~p measurements", 
+        ?debug("InfluxDB reporter send packet with ~p measurements",
                [maps:size(CollectedMetrics)]),
         Packets = [make_packet(MetricName, Tags, Fileds, Timestamping, Precision) ++ "\n"
                    || {_, {MetricName, Tags, Fileds, Timestamping}} 
                       <- maps:to_list(CollectedMetrics)],
         send(Packets, State#state{collected_metrics = #{}});
-    true -> {ok, State}   
+    true -> {ok, State}
     end;
 exometer_info(_Unknown, State) ->
     {ok, State}.
@@ -186,8 +196,8 @@ exometer_terminate(Reason, _) ->
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
--spec connect(protocol(), binary(), integer(), 
-              undefined | iodata(), undefined | iodata()) -> 
+-spec connect(protocol(), binary(), integer(),
+              undefined | iodata(), undefined | iodata()) ->
     {ok, pid() | reference()} | {error, term()}.
 connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
     {ok, _} = application:ensure_all_started(hackney),
@@ -208,11 +218,11 @@ connect(Protocol, _, _, _, _) -> {error, {Protocol, not_supported}}.
 reconnect(#state{protocol = Protocol, host = Host, port = Port,
                  username = Username, password = Password} = State) ->
     case connect(Protocol, Host, Port, Username, Password) of
-        {ok, Connection} -> 
-            ?info("InfluxDB reporter reconnecting success: ~p", 
+        {ok, Connection} ->
+            ?info("InfluxDB reporter reconnecting success: ~p",
                   [{Protocol, Host, Port, Username, Password}]),
             {ok, State#state{connection = Connection}};
-        Error -> 
+        Error ->
             ?error("InfluxDB reporter reconnecting error: ~p", [Error]),
             prepare_reconnect(),
             {ok, State#state{connection = undefined}}
@@ -224,7 +234,7 @@ prepare_batch_send(Time) ->
 prepare_reconnect() ->
     erlang:send_after(1000, ?MODULE, {exometer_influxdb, reconnect}).
 
--spec maybe_send(list(), list(), map(), map(), state()) -> 
+-spec maybe_send(list(), list(), map(), map(), state()) ->
     {ok, state()} | {error, term()}.
 maybe_send(OriginMetricName, MetricName, Tags0, Fields, 
            #state{batch_window_size = BatchWinSize, 
@@ -233,7 +243,7 @@ maybe_send(OriginMetricName, MetricName, Tags0, Fields,
                   collected_metrics = CollectedMetrics} = State)
   when BatchWinSize > 0 ->
     NewCollectedMetrics = case maps:get(OriginMetricName, CollectedMetrics, not_found) of
-        {MetricName, Tags, Fields1} -> 
+        {MetricName, Tags, Fields1} ->
             NewFields = maps:merge(Fields, Fields1),
             maps:put(OriginMetricName, 
                      {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)}, 
@@ -245,12 +255,12 @@ maybe_send(OriginMetricName, MetricName, Tags0, Fields,
     end,
     maps:size(CollectedMetrics) == 0 andalso prepare_batch_send(BatchWinSize),
     {ok, State#state{collected_metrics = NewCollectedMetrics}};
-maybe_send(_, MetricName, Tags, Fields, 
+maybe_send(_, MetricName, Tags, Fields,
            #state{timestamping = Timestamping, precision = Precision} = State) ->
     Packet = make_packet(MetricName, Tags, Fields, Timestamping, Precision),
     send(Packet, State).
 
--spec send(binary() | list(), state()) -> 
+-spec send(binary() | list(), state()) ->
     {ok, state()} | {error, term()}.
 send(Packet, #state{protocol = http, connection= Connection,
                     precision = Precision, db = DB,
@@ -262,7 +272,7 @@ send(Packet, #state{protocol = http, connection= Connection,
     Url = hackney_url:make_url(<<"/">>, <<"write">>, QsVals),
     Req = {post, Url, [], Packet},
     case hackney:send_request(Connection, Req) of
-        {ok, 204, _, Ref} -> 
+        {ok, 204, _, Ref} ->
             hackney:body(Ref),
             {ok, State};
         {ok, Status, _Headers, Ref} ->
@@ -270,15 +280,15 @@ send(Packet, #state{protocol = http, connection= Connection,
             ?warning("InfluxDB reporter got unexpected response with code ~p"
                      " and body: ~p. Reconnecting ...", [Status, Body]),
             reconnect(State);
-        {error, _} = Error -> 
+        {error, _} = Error ->
             ?error("InfluxDB reporter HTTP sending error: ~p", [Error]),
             reconnect(State)
     end;
-send(Packet, #state{protocol = udp, connection = Socket, 
-                    host = Host, port = Port} = State) -> 
+send(Packet, #state{protocol = udp, connection = Socket,
+                    host = Host, port = Port} = State) ->
     case gen_udp:send(Socket, Host, Port, Packet) of
         ok -> {ok, State};
-        Error -> 
+        Error ->
             ?error("InfluxDB reporter UDP sending error: ~p", [Error]),
             reconnect(State)
     end;
@@ -286,9 +296,9 @@ send(_, #state{protocol = Protocol}) -> {error, {Protocol, not_supported}}.
 
 -spec merge_tags(list() | map(), list() | map()) -> map().
 merge_tags(Tags, AdditionalTags) when is_list(Tags) ->
-    merge_tags(maps:from_list(Tags), AdditionalTags); 
+    merge_tags(maps:from_list(Tags), AdditionalTags);
 merge_tags(Tags, AdditionalTags) when is_list(AdditionalTags) ->
-    merge_tags(Tags, maps:from_list(AdditionalTags)); 
+    merge_tags(Tags, maps:from_list(AdditionalTags));
 merge_tags(Tags, AdditionalTags) when not is_map(AdditionalTags) -> Tags;
 merge_tags(Tags, AdditionalTags) -> maps:merge(Tags, AdditionalTags).
 
@@ -296,7 +306,7 @@ merge_tags(Tags, AdditionalTags) -> maps:merge(Tags, AdditionalTags).
 get_opt(K, Opts, Default) ->
     exometer_util:get_opt(K, Opts, Default).
 
-%% LINE PROTOCOL 
+%% LINE PROTOCOL
 -define(SEP(V), case V of <<>> -> <<>>; [] -> <<>>; _ -> <<$,>> end).
 
 -spec microsecs() -> integer().
@@ -308,17 +318,17 @@ microsecs() ->
     MegaSecs * 1000000 * 1000000 + Secs * 1000000 + MicroSecs.
 -endif.
 
--spec convert_time_unit(integer(), erlang:time_unit() | minutes | hours) -> 
+-spec convert_time_unit(integer(), erlang:time_unit() | minutes | hours) ->
     integer().
-convert_time_unit(MicroSecs, hours) -> 
+convert_time_unit(MicroSecs, hours) ->
     round(convert_time_unit(MicroSecs, minutes) / 60);
-convert_time_unit(MicroSecs, minutes) -> 
+convert_time_unit(MicroSecs, minutes) ->
     round(convert_time_unit(MicroSecs, seconds) / 60);
-convert_time_unit(MicroSecs, seconds) -> 
+convert_time_unit(MicroSecs, seconds) ->
     round(convert_time_unit(MicroSecs, milli_seconds) / 1000);
-convert_time_unit(MicroSecs, milli_seconds) -> 
+convert_time_unit(MicroSecs, milli_seconds) ->
     round(MicroSecs / 1000);
-convert_time_unit(MicroSecs, nano_seconds) -> 
+convert_time_unit(MicroSecs, nano_seconds) ->
     MicroSecs * 1000.
 
 -spec unix_time(precision() | undefined) -> integer() | undefined.
@@ -340,14 +350,15 @@ metric_elem_to_list(E) when is_atom(E) -> atom_to_list(E);
 metric_elem_to_list(E) when is_list(E) -> E;
 metric_elem_to_list(E) when is_integer(E) -> integer_to_list(E).
 
--spec name(exometer_report:metric()) -> binary().
+-spec name(exometer_report:metric() | atom()) -> binary().
+name(Metric) when is_atom(Metric) -> atom_to_binary(Metric, utf8);
 name(Metric) -> iolist_to_binary(metric_to_string(Metric)).
 
 -spec key(integer() | atom() | list() | binary()) -> binary().
 key(K) when is_integer(K) -> key(integer_to_binary(K));
 key(K) when is_list(K) -> key(list_to_binary(K));
 key(K) when is_atom(K) -> key(atom_to_binary(K, utf8));
-key(K) -> 
+key(K) ->
     binary:replace(K, [<<" ">>, <<$,>>, <<$=>>], <<$\\>>,
                    [global, {insert_replaced, 1}]).
 
@@ -419,33 +430,63 @@ del_indices1(List, [Index | Indices]) when length(List) >= Index, Index > 0 ->
 del_indices1(_List, Indices) ->
     exit({invalid_indices, Indices}).
 
--spec evaluate_subscription_tags(list(), undefined | [{atom(), value()}]) -> 
-    {list(), map()}.
-evaluate_subscription_tags(Metric, undefined) -> 
-    evaluate_subscription_tags(Metric, []);
-evaluate_subscription_tags(Metric, Tags) ->
-    evaluate_subscription_tags(Metric, Tags, [], []).
+-spec evaluate_subscription_options(list(), [{atom(), value()}], map(), atom(), [{atom(), value()}])
+                                    -> {list() | atom(), map()}.
+evaluate_subscription_options(MetricId, Options, DefaultTags, DefaultSeriesName, DefaultFormatting) ->
+    TagOpts = proplists:get_value(tags, Options, []),
+    TagsResult = evaluate_subscription_tags(MetricId, TagOpts),
+    FormattingOpts = proplists:get_value(formatting, Options, DefaultFormatting),
+    FormattingResult = evaluate_subscription_formatting(TagsResult, FormattingOpts),
+    SeriesName = proplists:get_value(series_name, Options, DefaultSeriesName),
+    {FinalMetricId, NewTags} = evaluate_subscription_series_name(FormattingResult, SeriesName),
+    TagMap = maps:from_list(NewTags),
+    FinalTags = merge_tags(DefaultTags, TagMap),
+    {FinalMetricId, FinalTags}.
 
--spec evaluate_subscription_tags(list(), [{atom(), value()}], [{atom(), value()}],
-                                 [integer()]) -> {list(), map()}.
-evaluate_subscription_tags(Metric, [], TagAcc, PosAcc) ->
-    MetricName = del_indices(Metric, PosAcc),
-    {MetricName, maps:from_list(TagAcc)};
-evaluate_subscription_tags(Metric, [{Key, {from_name, Pos}} | TagOpts], TagAcc, PosAcc)
-    when is_number(Pos), length(Metric) >= Pos, Pos > 0 ->
-    NewTagAcc = TagAcc ++ [{Key, lists:nth(Pos, Metric)}],
+-spec evaluate_subscription_tags(list(), [{atom(), value()}]) -> {list(), map(), [integer()]}.
+evaluate_subscription_tags(MetricId, TagOpts) ->
+    evaluate_subscription_tags(MetricId, TagOpts, [], []).
+
+-spec evaluate_subscription_tags(list(), [{atom(), value()}], [{atom(), value()}], [integer()])
+                                 -> {list(), map(), [integer()]}.
+evaluate_subscription_tags(MetricId, [], TagAcc, PosAcc) ->
+    {MetricId, TagAcc, PosAcc};
+evaluate_subscription_tags(MetricId, [{TagKey, {from_name, Pos}} | TagOpts], TagAcc, PosAcc)
+    when is_number(Pos), length(MetricId) >= Pos, Pos > 0 ->
+    NewTagAcc = TagAcc ++ [{TagKey, lists:nth(Pos, MetricId)}],
     NewPosAcc = PosAcc ++ [Pos],
-    evaluate_subscription_tags(Metric, TagOpts, NewTagAcc, NewPosAcc);
-evaluate_subscription_tags(Metric, [TagOpt = {Key, {from_name, Name}} | TagOpts],
-    TagAcc, PosAcc) ->
-    case string:str(Metric, [Name]) of
+    evaluate_subscription_tags(MetricId, TagOpts, NewTagAcc, NewPosAcc);
+evaluate_subscription_tags(MetricId, [TagOpt = {TagKey, {from_name, Name}} | TagOpts], TagAcc, PosAcc) ->
+    case string:str(MetricId, [Name]) of
         0     -> exit({invalid_tag_option, TagOpt});
         Index ->
-            NewTagAcc = TagAcc ++ [{Key, Name}],
+            NewTagAcc = TagAcc ++ [{TagKey, Name}],
             NewPosAcc = PosAcc ++ [Index],
-            evaluate_subscription_tags(Metric, TagOpts, NewTagAcc, NewPosAcc)
+            evaluate_subscription_tags(MetricId, TagOpts, NewTagAcc, NewPosAcc)
     end;
-evaluate_subscription_tags(Metric, [Tag = {_Key, _Value} | Tags], TagAcc, PosAcc) ->
-    evaluate_subscription_tags(Metric, Tags, TagAcc ++ [Tag], PosAcc);
-evaluate_subscription_tags(_Metric, [Tag | _] , _TagAcc, _PosAcc) ->
+evaluate_subscription_tags(MetricId, [Tag = {_Key, _Value} | Tags], TagAcc, PosAcc) ->
+    evaluate_subscription_tags(MetricId, Tags, TagAcc ++ [Tag], PosAcc);
+evaluate_subscription_tags(_MetricId, [Tag | _] , _TagAcc, _PosAcc) ->
     exit({invalid_tag_option, Tag}).
+
+-spec evaluate_subscription_formatting({list(), [{atom(), value()}], [integer()]}, term())
+                                       -> {list(), [{atom(), value()}]}.
+evaluate_subscription_formatting({MetricId, Tags, FromNameIndices}, FormattingOpts) ->
+    ToPurge = proplists:get_value(purge, FormattingOpts, []),
+    KeysToPurge = proplists:get_all_values(tag_keys, ToPurge),
+    ValuesToPurge = proplists:get_all_values(tag_values, ToPurge),
+    PurgedTags = [{TagKey, TagValue} || {TagKey, TagValue} <- Tags,
+                                        lists:member(TagKey, KeysToPurge) == false,
+                                        lists:member(TagValue, ValuesToPurge) == false],
+    FromNamePurge = proplists:get_value(all_from_name, ToPurge, true),
+    PurgedMetricId = case FromNamePurge of
+                          true  -> del_indices(MetricId, FromNameIndices);
+                          false -> MetricId
+                     end,
+    {PurgedMetricId, PurgedTags}.
+
+-spec evaluate_subscription_series_name({list(), [{atom(), value()}]}, atom())
+                                        -> {list() | atom(), [{atom(), value()}]}.
+evaluate_subscription_series_name({MetricId, Tags}, undefined) -> {MetricId, Tags};
+evaluate_subscription_series_name({_MetricId, Tags}, SeriesName) -> {SeriesName, Tags}.
+
