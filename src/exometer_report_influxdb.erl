@@ -15,6 +15,12 @@
          exometer_terminate/2]).
 
 
+-ifdef(TEST).
+-export([evaluate_subscription_tags/2,
+         make_packet/5]).
+-endif.
+
+
 -define(DEFAULT_HOST, <<"127.0.0.1">>).
 -define(DEFAULT_DB, <<"exometer">>).
 -define(DEFAULT_PROTOCOL, http).
@@ -288,9 +294,13 @@ get_opt(K, Opts, Default) ->
 -define(SEP(V), case V of <<>> -> <<>>; [] -> <<>>; _ -> <<$,>> end).
 
 -spec microsecs() -> integer().
+-ifdef(TEST).
+microsecs() -> 1456993524527361.
+-else.
 microsecs() ->
     {MegaSecs, Secs, MicroSecs} = os:timestamp(),
     MegaSecs * 1000000 * 1000000 + Secs * 1000000 + MicroSecs.
+-endif.
 
 -spec convert_time_unit(integer(), erlang:time_unit() | minutes | hours) -> 
     integer().
