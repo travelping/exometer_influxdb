@@ -154,14 +154,14 @@ exometer_cast(_Unknown, State) ->
 exometer_info({exometer_influxdb, reconnect}, State) ->
     reconnect(State);
 exometer_info({exometer_influxdb, send}, 
-              #state{timestamping = Timestamping,
-                     precision = Precision,
+              #state{precision = Precision,
                      collected_metrics = CollectedMetrics} = State) ->
     if CollectedMetrics /= #{} ->
         ?debug("InfluxDB reporter send packet with ~p measurements", 
                [maps:size(CollectedMetrics)]),
         Packets = [make_packet(MetricName, Tags, Fileds, Timestamping, Precision) ++ "\n"
-                   || {_, {MetricName, Tags, Fileds}} <- maps:to_list(CollectedMetrics)],
+                   || {_, {MetricName, Tags, Fileds, Timestamping}} 
+                      <- maps:to_list(CollectedMetrics)],
         send(Packets, State#state{collected_metrics = #{}});
     true -> {ok, State}   
     end;
@@ -228,14 +228,20 @@ prepare_reconnect() ->
     {ok, state()} | {error, term()}.
 maybe_send(OriginMetricName, MetricName, Tags0, Fields, 
            #state{batch_window_size = BatchWinSize, 
+                  precision = Precision,
+                  timestamping = Timestamping,
                   collected_metrics = CollectedMetrics} = State)
   when BatchWinSize > 0 ->
     NewCollectedMetrics = case maps:get(OriginMetricName, CollectedMetrics, not_found) of
         {MetricName, Tags, Fields1} -> 
             NewFields = maps:merge(Fields, Fields1),
-            maps:put(OriginMetricName, {MetricName, Tags, NewFields}, CollectedMetrics);
+            maps:put(OriginMetricName, 
+                     {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)}, 
+                     CollectedMetrics);
         not_found -> 
-            maps:put(OriginMetricName, {MetricName, Tags0, Fields}, CollectedMetrics)
+            maps:put(OriginMetricName, 
+                     {MetricName, Tags0, Fields, Timestamping andalso unix_time(Precision)}, 
+                     CollectedMetrics)
     end,
     maps:size(CollectedMetrics) == 0 andalso prepare_batch_send(BatchWinSize),
     {ok, State#state{collected_metrics = NewCollectedMetrics}};
@@ -367,7 +373,8 @@ flatten_tags(Tags) ->
                 end, [], lists:keysort(1, Tags)).
 
 -spec make_packet(exometer_report:metric(), map() | list(),
-                  list(), boolean(), precision()) -> list().
+                  list(), boolean() | non_neg_integer(), precision()) -> 
+    list().
 make_packet(Measurement, Tags, Fields, Timestamping, Precision) ->
     BinaryTags = flatten_tags(Tags),
     BinaryFields = flatten_fields(Fields),
@@ -377,7 +384,10 @@ make_packet(Measurement, Tags, Fields, Timestamping, Precision) ->
             BinaryFields, " "];
         true ->
             [name(Measurement), ?SEP(BinaryTags), BinaryTags, " ",
-            BinaryFields, " ", integer_to_binary(unix_time(Precision))]
+            BinaryFields, " ", integer_to_binary(unix_time(Precision))];
+        Timestamp when is_integer(Timestamp) -> % for batch sending with timestamp
+            [name(Measurement), ?SEP(BinaryTags), BinaryTags, " ",
+            BinaryFields, " ", integer_to_binary(Timestamp)]
     end.
 
 -spec evaluate_timestamp_opt({boolean(), precision()} | boolean())

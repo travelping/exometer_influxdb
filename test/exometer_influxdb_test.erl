@@ -46,7 +46,6 @@ make_packet_without_timestamping_test() ->
                  make_bin_packet(Name6, Tags6, #{value => 1, value2 => 2}, false, u)),
     ok.
 
--define(VALID_PRECISIONS, [n, u, ms, s, m, h]).
 make_packet_with_timestamping_test() ->
     {Name1, Tags1} = evaluate_subscription_tags([a, b, c], []),
 
@@ -67,6 +66,17 @@ make_packet_with_timestamping_test() ->
 
     ?assertEqual(<<"a_b_c value=1i 404720">>, 
                  make_bin_packet(Name1, Tags1, #{value => 1}, true, h)),
+    ok.
+
+make_packet_with_integer_timestamping_test() ->
+    {Name1, Tags1} = evaluate_subscription_tags([a, b, c], []),
+
+    ?assertEqual(<<"a_b_c value=1i 10000">>, 
+                 make_bin_packet(Name1, Tags1, #{value => 1}, 10000, n)),
+
+    ?assertEqual(<<"a_b_c value=1i 10000">>, 
+                 make_bin_packet(Name1, Tags1, #{value => 1}, 10000, s)),
+
     ok.
 
 make_bin_packet(Name, Tags, Fields, Timestamping, Precision) ->
