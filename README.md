@@ -37,16 +37,19 @@ Available options:
 * __host__ - InfluxDB host. `127.0.0.1` by default.
 * __protocol__ - `http` or `udp` for operating with InfluxDB. `http` by default.
 * __port__ - InfluxDB port. `8086` by default.
-* __db__ - database on InfluxDB for writing data. `exometer` by default
-* __username__ - username for authorization on InfluxDB.
-* __password__ - password for authorization on InfluxDB.
-* __timestamping__ - enable timestamping, `false` by default.
-* __tags__ - list of default tags for each data point. The `host` is automatically included here. 
+* __db__ - Database on InfluxDB for writing data. `exometer` by default
+* __username__ - Username for authorization on InfluxDB.
+* __password__ - Password for authorization on InfluxDB.
+* __timestamping__ - Enable timestamping, `false` by default. To enable `timestamping` with the reporter you can use `true` or `{true, Precision}` where `Precision` is a unit taken from `[n,u,ms,s,m,h]`. The default unit is `u`.
 * __batch_window_size__ - set window size in ms for batch sending. This means reported will collect measurements within this interval and send all measurements in one packet. `0` by default. 
 
-Timestamping is by default done by influxdb itself. To enable `timestamping` with the reporter you can use `true` or `{true, Precision}` where `Precision` is a unit taken from `[n,u,ms,s,m,h]`. The default unit is `u`.
+The following options can be set globally in the reporter config or locally in a specific subscription. The latter case overwrites the first.
 
-Besides the `tags` for the reporter initialization it is possible to add other tags via the `Extra` parameter of `exometer_report:subscribe/5` as done here with environment variables:
+* __tags__ - List of tags for each time series. The `host` is automatically included here.
+* __series_name__ - The name of a time series visible within the `FROM` field. By default this is set to the concatenated elements of the exometer id. Caution: If set in application config then every time series with have this name.
+* __formatting__ - Formatting options to alter the appearance of a series name or tags.
+
+### Subscription examples:
 
 ```erlang
 {exometer, 
@@ -56,14 +59,27 @@ Besides the `tags` for the reporter initialization it is possible to add other t
 }.
 ```
 
-By default the in influxdb visible name of the metric is derived from the exometer id: here `[erlang, memory]` is translated to `erlang_memory`. It is possible to remove an item from this list by naming itself or its position with the `from_name` keyword. A removed element is then used as tag:
+By default the in InfluxDB visible name of the metric is derived from the exometer id: Here `[erlang, memory]` is translated to `erlang_memory`. 
+It is possible to remove an item from this list by naming itself or its position with the `from_name` keyword. A removed element is then used as tag value:
 
 ```erlang
-exometer_report:subscribe(exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tag, {from_name, 2}}]).
+exometer_report:subscribe(exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tags, [{tag, {from_name, 2}}]}]).
 ```
 
-This will result in a name `erlang` with the tag pair `{tag, memory}` (plus the default pair `{host, Host}`).
+This will result in a name `erlang` with the tag pair `{tag, memory}` (plus the default pair `{host, Host}`). To disable the removal of elements in the series name you can set:
+
+```erlang
+{formatting, [{purge, [{all_from_name, false}]}]}
+```
+
+Further it might be handy to remove e.g. `undefined` tag keys or values. This can be done via:
+
+```erlang
+{formatting, [{purge, [{tag_keys, undefined}, {tag_values, undefined}]}]}
+```
+
 
 # TODO
 
 * Reconfiguration on runtime
+* Enhance the formatting options (e.g. concatenation chars, format strings, etc.)
