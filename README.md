@@ -54,7 +54,7 @@ The following options can be set globally in the reporter config or locally in a
 ```erlang
 {exometer, 
     {subscriptions, [
-         {exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tag, <<"value">>}]},
+         {exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tags, {tag, <<"value">>}}]},
     ]}
 }.
 ```
