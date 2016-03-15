@@ -37,16 +37,16 @@ Available options:
 * __host__ - InfluxDB host. `127.0.0.1` by default.
 * __protocol__ - `http` or `udp` for operating with InfluxDB. `http` by default.
 * __port__ - InfluxDB port. `8086` by default.
-* __db__ - Database on InfluxDB for writing data. `exometer` by default
+* __db__ - Database on InfluxDB for writing data. `exometer` by default.
 * __username__ - Username for authorization on InfluxDB.
 * __password__ - Password for authorization on InfluxDB.
 * __timestamping__ - Enable timestamping, `false` by default. To enable `timestamping` with the reporter you can use `true` or `{true, Precision}` where `Precision` is a unit taken from `[n,u,ms,s,m,h]`. The default unit is `u`.
-* __batch_window_size__ - set window size in ms for batch sending. This means reported will collect measurements within this interval and send all measurements in one packet. `0` by default. 
+* __batch_window_size__ - set window size in ms for batch sending. This means the reporter will collect measurements within this interval and send all measurements in one packet. `0` by default.
 
 The following options can be set globally in the reporter config or locally in a specific subscription. The latter case overwrites the first.
 
 * __tags__ - List of tags for each time series. The `host` is automatically included here.
-* __series_name__ - The name of a time series visible within the `FROM` field. By default this is set to the concatenated elements of the exometer id. Caution: If set in application config then every time series with have this name.
+* __series_name__ - The name of a time series visible within the `FROM` field. By default this is set to the concatenated elements of the exometer id. Caution: If set in the global reporter config then every time series will have this name.
 * __formatting__ - Formatting options to alter the appearance of a series name or tags.
 
 ### Subscription examples:
@@ -54,7 +54,7 @@ The following options can be set globally in the reporter config or locally in a
 ```erlang
 {exometer, 
     {subscriptions, [
-         {exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tags, {tag, <<"value">>}}]},
+         {exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tags, {tag, value}}]},
     ]}
 }.
 ```
