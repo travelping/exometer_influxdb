@@ -374,6 +374,7 @@ metric_to_string([H | T]) ->
 
 -spec metric_elem_to_list(atom() | string() | integer()) -> string().
 metric_elem_to_list(E) when is_atom(E) -> atom_to_list(E);
+metric_elem_to_list(E) when is_binary(E) -> binary_to_list(E);
 metric_elem_to_list(E) when is_list(E) -> E;
 metric_elem_to_list(E) when is_integer(E) -> integer_to_list(E).
 
