@@ -54,7 +54,7 @@ The following options can be set globally in the reporter config or locally in a
 ```erlang
 {exometer, 
     {subscriptions, [
-         {exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tags, {tag, value}}]},
+         {exometer_report_influxdb, [erlang, memory], total, 5000, [{tags, {tag, value}}]},
     ]}
 }.
 ```
@@ -63,7 +63,7 @@ By default the in InfluxDB visible name of the metric is derived from the exomet
 It is possible to remove an item from this list by naming itself or its position with the `from_name` keyword. A removed element is then used as tag value:
 
 ```erlang
-exometer_report:subscribe(exometer_report_influxdb, [erlang, memory], total, 5000, true, [{tags, [{tag, {from_name, 2}}]}]).
+exometer_report:subscribe(exometer_report_influxdb, [erlang, memory], total, 5000, [{tags, [{tag, {from_name, 2}}]}]).
 ```
 
 This will result in a name `erlang` with the tag pair `{tag, memory}` (plus the default pair `{host, Host}`). To disable the removal of elements in the series name you can set:
