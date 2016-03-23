@@ -20,6 +20,7 @@
          make_packet/5]).
 -endif.
 
+-include_lib("exometer_core/include/exometer.hrl").
 
 -define(DEFAULT_HOST, <<"127.0.0.1">>).
 -define(DEFAULT_DB, <<"exometer">>).
@@ -32,6 +33,8 @@
 -define(DEFAULT_FORMATTING, []).
 -define(DEFAULT_TIMESTAMP_OPT, false).
 -define(DEFAULT_BATCH_WINDOW_SIZE, 0).
+-define(DEFAULT_AUTOSUBSCRIBE, false).
+-define(DEFAULT_SUBSCRIPTIONS_MOD, undefined).
 
 -define(VALID_PRECISIONS, [n, u, ms, s, m, h]).
 
@@ -59,6 +62,8 @@
                 series_name :: atom(),
                 formatting :: list(),
                 metrics :: map(),
+                autosubscribe :: boolean(),
+                subscriptions_module :: module(),
                 connection :: gen_udp:socket() | reference()}).
 -type state() :: #state{}.
 
@@ -80,6 +85,8 @@ exometer_init(Opts) ->
     Tags = [{key(Key), Value} || {Key, Value} <- get_opt(tags, Opts, [])],
     SeriesName = get_opt(series_name, Opts, ?DEFAULT_SERIES_NAME),
     Formatting = get_opt(formatting, Opts, ?DEFAULT_FORMATTING),
+    Autosubscribe = get_opt(autosubscribe, Opts, ?DEFAULT_AUTOSUBSCRIBE),
+    SubscriptionsMod = get_opt(subscriptions_module, Opts, ?DEFAULT_SUBSCRIPTIONS_MOD),
     MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
     State =  #state{protocol = Protocol,
                     db = DB,
@@ -93,6 +100,8 @@ exometer_init(Opts) ->
                     series_name = SeriesName,
                     formatting = Formatting,
                     batch_window_size = BatchWinSize,
+                    autosubscribe = Autosubscribe,
+                    subscriptions_module = SubscriptionsMod,
                     metrics = maps:new()},
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} ->
@@ -179,7 +188,14 @@ exometer_info(_Unknown, State) ->
     {ok, State}.
 
 -spec exometer_newentry(exometer:entry(), state()) -> callback_result().
-exometer_newentry(_Entry, State) ->
+exometer_newentry(#exometer_entry{name = Name, type = Type} = _Entry, 
+                  #state{autosubscribe = Autosubscribe, 
+                         subscriptions_module = Module} = State) ->
+    case {Autosubscribe, Module} of
+        {true, Module} when is_atom(Module); Module /= undefined ->
+            subscribe(Module:subscribe(Name, Type));
+        _ -> []
+    end,
     {ok, State}.
 
 -spec exometer_setopts(exometer:entry(), options(),
@@ -301,6 +317,17 @@ merge_tags(Tags, AdditionalTags) when is_list(AdditionalTags) ->
     merge_tags(Tags, maps:from_list(AdditionalTags));
 merge_tags(Tags, AdditionalTags) when not is_map(AdditionalTags) -> Tags;
 merge_tags(Tags, AdditionalTags) -> maps:merge(Tags, AdditionalTags).
+
+-spec subscribe(list() | {exometer_report:metric(),
+                          exometer_report:datapoint(),
+                          exometer_report:interval(),
+                          exometer_report:extra()}) -> ok.
+subscribe(Subscribtions) when is_list(Subscribtions) ->
+    [subscribe(Subscribtion) || Subscribtion <- Subscribtions];
+subscribe({Name, DataPoint, Interval, Extra}) ->
+    exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
+subscribe(Name) -> 
+    [].
 
 -spec get_opt(atom(), list(), any()) -> any().
 get_opt(K, Opts, Default) ->
