@@ -78,6 +78,46 @@ Further it might be handy to remove e.g. `undefined` tag keys or values. This ca
 {formatting, [{purge, [{tag_keys, undefined}, {tag_values, undefined}]}]}
 ```
 
+### Auto subscriptions:
+
+There is capability for making a subscription automatically for each new entry. By default it is off. If you need to enable it in the reporter options and also provide a callback module which handles newly created entries.
+
+```erlang
+{exometer, 
+    {reporters, [
+        {exometer_report_influxdb, [{autosubscribe, true}, 
+                                    {subscriptions_module, exometer_influxdb_subscribe_mod}, 
+                                    {protocol, http}, 
+                                    {host, <<"localhost">>},
+                                    {port, 8086},
+                                    {db, <<"exometer">>},
+                                    {tags, [{region, ru}]}]}
+    ]}
+}.
+```
+
+The callback module may look like:
+
+```erlang
+-module(exometer_influxdb_subscribe_mod).
+-export([subscribe/2]).
+
+subscribe([metric, test], histogram) ->
+    Tags = [{tags, [{type, {from_name, 2}}]}],
+    [{[metric, test], min, 1000, Tags},
+     {[metric, test], max, 1000, Tags},
+     {[metric, test], median, 1000, Tags}];
+subscribe([metric, test1], histogram) ->
+    Tags = [{tags, [{type, {from_name, 2}}]}],
+    [{[metric, test1], max, 1000, Tags},
+     {[metric, test1], median, 1000, Tags}];
+subscribe(_, _) -> [].
+```
+
+`subscribe/2` calls for each new entry and it should return a list or just one subscription. Here a single subscription has the following layout:
+```erlang
+{exometer_report:metric(), exometer_report:datapoint(), exometer_report:interval(), exometer_report:extra()}
+```
 
 # TODO
 

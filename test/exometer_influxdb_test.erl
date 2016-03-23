@@ -108,5 +108,28 @@ make_packet_with_integer_timestamping_test() ->
 
     ok.
 
+subscribtions_module_test() ->
+    {ok, Socket} = gen_udp:open(8089),
+    Subscribers =  [ 
+        {reporters, [
+            {exometer_report_influxdb, [{autosubscribe, true}, 
+                                        {subscriptions_module, exometer_influxdb_subscribe_mod}, 
+                                        {protocol, udp}, {port, 8089}, {tags, [{region, ru}]}]}
+        ]}],
+    error_logger:tty(false),
+    application:set_env(lager, handlers, [{lager_console_backend, none}]),
+    application:set_env(exometer, report, Subscribers),
+    {ok, Apps} = application:ensure_all_started(exometer_influxdb),
+
+    exometer:update_or_create([metric, test], 1, histogram, []),
+    exometer:update_or_create([metric, test1], 2, histogram, []),
+
+    timer:sleep(100),
+    ?assertEqual(5, length(exometer_report:list_subscriptions(exometer_report_influxdb))),
+
+    [application:stop(App) || App <- Apps],
+    gen_udp:close(Socket),
+    ok.
+
 make_bin_packet(Name, Tags, Fields, Timestamping, Precision) ->
     binary:list_to_bin(make_packet(Name, Tags, Fields, Timestamping, Precision)).
