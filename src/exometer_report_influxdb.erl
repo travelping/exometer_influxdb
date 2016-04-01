@@ -264,6 +264,11 @@ maybe_send(OriginMetricName, MetricName, Tags0, Fields,
             maps:put(OriginMetricName, 
                      {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)}, 
                      CollectedMetrics);
+        {MetricName, Tags, Fields1, _OrigTimestamp} ->
+            NewFields = maps:merge(Fields, Fields1),
+            maps:put(OriginMetricName,
+                     {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)},
+                     CollectedMetrics);
         not_found -> 
             maps:put(OriginMetricName, 
                      {MetricName, Tags0, Fields, Timestamping andalso unix_time(Precision)}, 
