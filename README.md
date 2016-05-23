@@ -21,13 +21,14 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 3. Configure it:
 
     ```erlang
-    {exometer, 
+    {exometer,
         {reporters, [
-            {exometer_report_influxdb, [{protocol, http}, 
+            {exometer_report_influxdb, [{protocol, http},
                                         {host, <<"localhost">>},
                                         {port, 8086},
                                         {db, <<"exometer">>},
-                                        {tags, [{region, ru}]}]}
+                                        {tags, [{region, ru}]},
+                                        {backoff, {jitter, 30000}}]}
         ]}
     }.
     ```
@@ -52,14 +53,14 @@ The following options can be set globally in the reporter config or locally in a
 ### Subscription examples:
 
 ```erlang
-{exometer, 
+{exometer,
     {subscriptions, [
          {exometer_report_influxdb, [erlang, memory], total, 5000, [{tags, {tag, value}}]},
     ]}
 }.
 ```
 
-By default the in InfluxDB visible name of the metric is derived from the exometer id: Here `[erlang, memory]` is translated to `erlang_memory`. 
+By default the in InfluxDB visible name of the metric is derived from the exometer id: Here `[erlang, memory]` is translated to `erlang_memory`.
 It is possible to remove an item from this list by naming itself or its position with the `from_name` keyword. A removed element is then used as tag value:
 
 ```erlang
@@ -83,11 +84,11 @@ Further it might be handy to remove e.g. `undefined` tag keys or values. This ca
 There is capability for making a subscription automatically for each new entry. By default it is off. If you need to enable it in the reporter options and also provide a callback module which handles newly created entries.
 
 ```erlang
-{exometer, 
+{exometer,
     {reporters, [
-        {exometer_report_influxdb, [{autosubscribe, true}, 
-                                    {subscriptions_module, exometer_influxdb_subscribe_mod}, 
-                                    {protocol, http}, 
+        {exometer_report_influxdb, [{autosubscribe, true},
+                                    {subscriptions_module, exometer_influxdb_subscribe_mod},
+                                    {protocol, http},
                                     {host, <<"localhost">>},
                                     {port, 8086},
                                     {db, <<"exometer">>},
