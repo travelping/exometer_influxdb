@@ -64,7 +64,8 @@
                 metrics :: map(),
                 autosubscribe :: boolean(),
                 subscriptions_module :: module(),
-                connection :: gen_udp:socket() | reference()}).
+                connection :: gen_udp:socket() | reference(),
+                backoff :: backoff:backoff()}).
 -type state() :: #state{}.
 
 
@@ -88,6 +89,8 @@ exometer_init(Opts) ->
     Autosubscribe = get_opt(autosubscribe, Opts, ?DEFAULT_AUTOSUBSCRIBE),
     SubscriptionsMod = get_opt(subscriptions_module, Opts, ?DEFAULT_SUBSCRIPTIONS_MOD),
     MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
+    {BackoffType, BackoffMax} = get_opt(backoff, Opts, {jitter, 30000}),
+    Backoff = backoff:type(backoff:init(100, BackoffMax), BackoffType),
     State =  #state{protocol = Protocol,
                     db = DB,
                     username = Username,
@@ -102,15 +105,15 @@ exometer_init(Opts) ->
                     batch_window_size = BatchWinSize,
                     autosubscribe = Autosubscribe,
                     subscriptions_module = SubscriptionsMod,
-                    metrics = maps:new()},
+                    metrics = maps:new(),
+                    backoff = Backoff},
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} ->
             ?info("InfluxDB reporter connecting success: ~p", [Opts]),
             {ok, State#state{connection = Connection}};
         Error ->
             ?error("InfluxDB reporter connecting error: ~p", [Error]),
-            prepare_reconnect(),
-            {ok, State}
+            {ok, prepare_reconnect(State)}
     end.
 
 -spec exometer_report(exometer_report:metric(),
@@ -172,14 +175,14 @@ exometer_cast(_Unknown, State) ->
 -spec exometer_info(any(), state()) -> callback_result().
 exometer_info({exometer_influxdb, reconnect}, State) ->
     reconnect(State);
-exometer_info({exometer_influxdb, send}, 
+exometer_info({exometer_influxdb, send},
               #state{precision = Precision,
                      collected_metrics = CollectedMetrics} = State) ->
     if CollectedMetrics /= #{} ->
         ?debug("InfluxDB reporter send packet with ~p measurements",
                [maps:size(CollectedMetrics)]),
         Packets = [make_packet(MetricName, Tags, Fileds, Timestamping, Precision) ++ "\n"
-                   || {_, {MetricName, Tags, Fileds, Timestamping}} 
+                   || {_, {MetricName, Tags, Fileds, Timestamping}}
                       <- maps:to_list(CollectedMetrics)],
         send(Packets, State#state{collected_metrics = #{}});
     true -> {ok, State}
@@ -188,8 +191,8 @@ exometer_info(_Unknown, State) ->
     {ok, State}.
 
 -spec exometer_newentry(exometer:entry(), state()) -> callback_result().
-exometer_newentry(#exometer_entry{name = Name, type = Type} = _Entry, 
-                  #state{autosubscribe = Autosubscribe, 
+exometer_newentry(#exometer_entry{name = Name, type = Type} = _Entry,
+                  #state{autosubscribe = Autosubscribe,
                          subscriptions_module = Module} = State) ->
     case {Autosubscribe, Module} of
         {true, Module} when is_atom(Module); Module /= undefined ->
@@ -232,28 +235,30 @@ connect(Protocol, _, _, _, _) -> {error, {Protocol, not_supported}}.
 
 -spec reconnect(state()) -> {ok, state()}.
 reconnect(#state{protocol = Protocol, host = Host, port = Port,
-                 username = Username, password = Password} = State) ->
+                 username = Username, password = Password, backoff = Backoff} = State) ->
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} ->
             ?info("InfluxDB reporter reconnecting success: ~p",
                   [{Protocol, Host, Port, Username, Password}]),
-            {ok, State#state{connection = Connection}};
+            {_, UpdatedBackoff} = backoff:succeed(Backoff),
+            {ok, State#state{connection = Connection, backoff = UpdatedBackoff}};
         Error ->
             ?error("InfluxDB reporter reconnecting error: ~p", [Error]),
-            prepare_reconnect(),
-            {ok, State#state{connection = undefined}}
+            {ok, prepare_reconnect(State)}
     end.
 
 prepare_batch_send(Time) ->
     erlang:send_after(Time, ?MODULE, {exometer_influxdb, send}).
 
-prepare_reconnect() ->
-    erlang:send_after(1000, ?MODULE, {exometer_influxdb, reconnect}).
+prepare_reconnect(#state{backoff = Backoff} = State) ->
+    {BackoffTime, UpdatedBackoff} = backoff:fail(Backoff),
+    erlang:send_after(BackoffTime, ?MODULE, {exometer_influxdb, reconnect}),
+    State#state{backoff = UpdatedBackoff, connection = undefined}.
 
 -spec maybe_send(list(), list(), map(), map(), state()) ->
     {ok, state()} | {error, term()}.
-maybe_send(OriginMetricName, MetricName, Tags0, Fields, 
-           #state{batch_window_size = BatchWinSize, 
+maybe_send(OriginMetricName, MetricName, Tags0, Fields,
+           #state{batch_window_size = BatchWinSize,
                   precision = Precision,
                   timestamping = Timestamping,
                   collected_metrics = CollectedMetrics} = State)
@@ -261,17 +266,17 @@ maybe_send(OriginMetricName, MetricName, Tags0, Fields,
     NewCollectedMetrics = case maps:get(OriginMetricName, CollectedMetrics, not_found) of
         {MetricName, Tags, Fields1} ->
             NewFields = maps:merge(Fields, Fields1),
-            maps:put(OriginMetricName, 
-                     {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)}, 
+            maps:put(OriginMetricName,
+                     {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)},
                      CollectedMetrics);
         {MetricName, Tags, Fields1, _OrigTimestamp} ->
             NewFields = maps:merge(Fields, Fields1),
             maps:put(OriginMetricName,
                      {MetricName, Tags, NewFields, Timestamping andalso unix_time(Precision)},
                      CollectedMetrics);
-        not_found -> 
-            maps:put(OriginMetricName, 
-                     {MetricName, Tags0, Fields, Timestamping andalso unix_time(Precision)}, 
+        not_found ->
+            maps:put(OriginMetricName,
+                     {MetricName, Tags0, Fields, Timestamping andalso unix_time(Precision)},
                      CollectedMetrics)
     end,
     maps:size(CollectedMetrics) == 0 andalso prepare_batch_send(BatchWinSize),
@@ -331,7 +336,7 @@ subscribe(Subscribtions) when is_list(Subscribtions) ->
     [subscribe(Subscribtion) || Subscribtion <- Subscribtions];
 subscribe({Name, DataPoint, Interval, Extra}) ->
     exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
-subscribe(Name) -> 
+subscribe(_Name) ->
     [].
 
 -spec get_opt(atom(), list(), any()) -> any().
@@ -417,7 +422,7 @@ flatten_tags(Tags) ->
                 end, [], lists:keysort(1, Tags)).
 
 -spec make_packet(exometer_report:metric(), map() | list(),
-                  list(), boolean() | non_neg_integer(), precision()) -> 
+                  list(), boolean() | non_neg_integer(), precision()) ->
     list().
 make_packet(Measurement, Tags, Fields, Timestamping, Precision) ->
     BinaryTags = flatten_tags(Tags),
