@@ -331,7 +331,7 @@ subscribe(Subscribtions) when is_list(Subscribtions) ->
     [subscribe(Subscribtion) || Subscribtion <- Subscribtions];
 subscribe({Name, DataPoint, Interval, Extra}) ->
     exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
-subscribe(Name) -> 
+subscribe(_Name) -> 
     [].
 
 -spec get_opt(atom(), list(), any()) -> any().
