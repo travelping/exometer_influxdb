@@ -212,7 +212,7 @@ exometer_terminate(Reason, _) ->
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
--spec connect(protocol(), binary(), integer(),
+-spec connect(protocol(), string() | binary(), integer(),
               undefined | iodata(), undefined | iodata()) ->
     {ok, pid() | reference()} | {error, term()}.
 connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
@@ -403,7 +403,7 @@ value(V) when is_list(V) -> value(list_to_binary(V));
 value(V) when is_binary(V) ->
     [$", binary:replace(V, <<$">>, <<$\\, $">>, [global]), $"].
 
--spec flatten_fields(list()) -> list().
+-spec flatten_fields(map()) -> list().
 flatten_fields(Fields) ->
     maps:fold(fun(K, V, Acc) ->
                   [Acc, ?SEP(Acc), key(K), $=, value(V)]
@@ -417,7 +417,7 @@ flatten_tags(Tags) ->
                 end, [], lists:keysort(1, Tags)).
 
 -spec make_packet(exometer_report:metric(), map() | list(),
-                  list(), boolean() | non_neg_integer(), precision()) -> 
+                  map(), boolean() | non_neg_integer(), precision()) -> 
     list().
 make_packet(Measurement, Tags, Fields, Timestamping, Precision) ->
     BinaryTags = flatten_tags(Tags),
@@ -476,12 +476,13 @@ evaluate_subscription_options(MetricId, Options, DefaultTags, DefaultSeriesName,
     FinalTags = merge_tags(DefaultTags, TagMap),
     {FinalMetricId, FinalTags}.
 
--spec evaluate_subscription_tags(list(), [{atom(), value()}]) -> {list(), map(), [integer()]}.
+-spec evaluate_subscription_tags(list(), [{atom(), value()}]) -> 
+    {list(), [{atom(), value()}], [integer()]}.
 evaluate_subscription_tags(MetricId, TagOpts) ->
     evaluate_subscription_tags(MetricId, TagOpts, [], []).
 
--spec evaluate_subscription_tags(list(), [{atom(), value()}], [{atom(), value()}], [integer()])
-                                 -> {list(), map(), [integer()]}.
+-spec evaluate_subscription_tags(list(), [{atom(), value()}], [{atom(), value()}], [integer()]) -> 
+    {list(), [{atom(), value()}], [integer()]}.
 evaluate_subscription_tags(MetricId, [], TagAcc, PosAcc) ->
     {MetricId, TagAcc, PosAcc};
 evaluate_subscription_tags(MetricId, [{TagKey, {from_name, Pos}} | TagOpts], TagAcc, PosAcc)
