@@ -120,7 +120,7 @@ exometer_init(Opts) ->
                       state()) -> callback_result().
 exometer_report(_Metric, _DataPoint, _Extra, _Value,
                 #state{connection = undefined} = State) ->
-    ?debug("InfluxDB reporter isn't connected and will reconnect."),
+    ?info("InfluxDB reporter isn't connected and will reconnect."),
     {ok, State};
 exometer_report(Metric, DataPoint, _Extra, Value,
                 #state{metrics = Metrics} = State) ->
@@ -176,8 +176,6 @@ exometer_info({exometer_influxdb, send},
               #state{precision = Precision,
                      collected_metrics = CollectedMetrics} = State) ->
     if CollectedMetrics /= #{} ->
-        ?debug("InfluxDB reporter send packet with ~p measurements",
-               [maps:size(CollectedMetrics)]),
         Packets = [make_packet(MetricName, Tags, Fileds, Timestamping, Precision) ++ "\n"
                    || {_, {MetricName, Tags, Fileds, Timestamping}} 
                       <- maps:to_list(CollectedMetrics)],

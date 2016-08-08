@@ -5,38 +5,15 @@
 -define(__LOG_HRL__, true).
 
 %% Lager logging levels
-%%   debug, info, notice, warning, error, critical, alert, emergency, none.
+%%   info, warning, error
 
--define(debug(Fmt), lager:debug(Fmt)).
--define(debug(Fmt, Args), lager:debug(Fmt, Args)).
--define(debug(Attrs, Fmt, Args), lager:debug(Attrs, Fmt, Args)).
+-define(info(Fmt), error_logger:info_msg(Fmt ++ "\n")).
+-define(info(Fmt, Args), error_logger:info_msg(Fmt ++ "\n", Args)).
 
--define(info(Fmt), lager:info(Fmt)).
--define(info(Fmt, Args), lager:info(Fmt, Args)).
--define(info(Attrs, Fmt, Args), lager:info(Attrs, Fmt, Args)).
+-define(warning(Fmt), error_logger:warning_msg(Fmt ++ "\n")).
+-define(warning(Fmt, Args), error_logger:warning_msg(Fmt ++ "\n", Args)).
 
--define(notice(Fmt), lager:notice(Fmt)).
--define(notice(Fmt, Args), lager:notice(Fmt, Args)).
--define(notice(Attrs, Fmt, Args), lager:notice(Attrs, Fmt, Args)).
-
--define(warning(Fmt), lager:warning(Fmt)).
--define(warning(Fmt, Args), lager:warning(Fmt, Args)).
--define(warning(Attrs, Fmt, Args), lager:warning(Attrs, Fmt, Args)).
-
--define(error(Fmt), lager:error(Fmt)).
--define(error(Fmt, Args), lager:error(Fmt, Args)).
--define(error(Attrs, Fmt, Args), lager:error(Attrs, Fmt, Args)).
-
--define(critical(Fmt), lager:critical(Fmt)).
--define(critical(Fmt, Args), lager:critical(Fmt, Args)).
--define(critical(Attrs, Fmt, Args), lager:critical(Attrs, Fmt, Args)).
-
--define(alert(Fmt), lager:alert(Fmt)).
--define(alert(Fmt, Args), lager:alert(Fmt, Args)).
--define(alert(Attrs, Fmt, Args), lager:alert(Attrs, Fmt, Args)).
-
--define(emergency(Fmt), lager:emergency(Fmt)).
--define(emergency(Fmt, Args), lager:emergency(Fmt, Args)).
--define(emergency(Attrs, Fmt, Args), lager:emergency(Attrs, Fmt, Args)).
+-define(error(Fmt), error_logger:error_msg(Fmt ++ "\n")).
+-define(error(Fmt, Args), error_logger:error_msg(Fmt ++ "\n", Args)).
 
 -endif.
