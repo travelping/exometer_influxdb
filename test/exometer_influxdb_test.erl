@@ -1,6 +1,7 @@
 -module(exometer_influxdb_test).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exometer_core/include/exometer.hrl").
 
 -import(exometer_report_influxdb, [evaluate_subscription_options/5,
                                    make_packet/5]).
@@ -126,6 +127,10 @@ subscribtions_module_test() ->
 
     timer:sleep(100),
     ?assertEqual(5, length(exometer_report:list_subscriptions(exometer_report_influxdb))),
+
+    Retries = [{Name ++ [DP], Retry} || {subscriber, {_, _, Name, DP, Retry, _}, _, _} <- ets:tab2list(?EXOMETER_SUBS)],
+    ?assertEqual(true, proplists:get_value([metric, test, median], Retries)),
+    ?assertEqual(false, proplists:get_value([metric, test1, max], Retries)),
 
     [application:stop(App) || App <- Apps],
     gen_udp:close(Socket),
