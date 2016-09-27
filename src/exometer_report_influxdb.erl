@@ -327,8 +327,10 @@ merge_tags(Tags, AdditionalTags) -> maps:merge(Tags, AdditionalTags).
                           exometer_report:extra()}) -> ok.
 subscribe(Subscribtions) when is_list(Subscribtions) ->
     [subscribe(Subscribtion) || Subscribtion <- Subscribtions];
+subscribe({Name, DataPoint, Interval, Extra, Retry}) when is_boolean(Retry) ->
+    exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, Retry);
 subscribe({Name, DataPoint, Interval, Extra}) ->
-    exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra, false);
+    exometer_report:subscribe(?MODULE, Name, DataPoint, Interval, Extra);
 subscribe(_Name) -> 
     [].
 
