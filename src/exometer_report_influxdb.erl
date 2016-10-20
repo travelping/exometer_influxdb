@@ -281,9 +281,10 @@ maybe_send(_, MetricName, Tags, Fields,
 
 -spec send(binary() | list(), state()) ->
     {ok, state()} | {error, term()}.
-send(Packet, #state{protocol = http, connection= Connection,
+send(Packet, #state{protocol = Proto, connection= Connection,
                     precision = Precision, db = DB,
-                    timestamping = Timestamping} = State) ->
+                    timestamping = Timestamping} = State)
+    when ?HTTP(Proto) ->
     QsVals = case Timestamping of
                  false -> [{<<"db">>, DB}];
                  true  -> [{<<"db">>, DB}, {<<"precision">>, Precision}]
