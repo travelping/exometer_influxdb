@@ -190,7 +190,10 @@ exometer_newentry(#exometer_entry{name = Name, type = Type} = _Entry,
                   #state{autosubscribe = Autosubscribe, 
                          subscriptions_module = Module} = State) ->
     case {Autosubscribe, Module} of
-        {true, Module} when is_atom(Module); Module /= undefined ->
+        {true, undefined} ->
+            ?warning("InfluxDB reporter has activated autosubscribe option, "
+                     "but subscriptions module is undefined.");
+        {true, Module} when is_atom(Module) ->
             subscribe(Module:subscribe(Name, Type));
         _ -> []
     end,
