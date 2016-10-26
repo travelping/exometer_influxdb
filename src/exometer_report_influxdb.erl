@@ -466,6 +466,8 @@ del_indices1(_List, Indices) ->
 
 -spec evaluate_subscription_options(list(), [{atom(), value()}], map(), atom(), [{atom(), value()}])
                                     -> {list() | atom(), map()}.
+evaluate_subscription_options(MetricId, undefined, DefaultTags, DefaultSeriesName, DefaultFormatting) ->
+  evaluate_subscription_options(MetricId, [], DefaultTags, DefaultSeriesName, DefaultFormatting);
 evaluate_subscription_options(MetricId, Options, DefaultTags, DefaultSeriesName, DefaultFormatting) ->
     TagOpts = proplists:get_value(tags, Options, []),
     TagsResult = evaluate_subscription_tags(MetricId, TagOpts),
