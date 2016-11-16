@@ -224,8 +224,18 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
         _ -> [{basic_auth, {Username, Password}}]
     end ++ [{pool, false}],
     Transport = case Proto of
-        http -> hackney_tcp_transport;
-        https -> hackney_ssl_transport
+        http -> 
+            code:load_file(hackney_tcp),
+            case code:is_loaded(hackney_tcp) of
+                true -> hackney_tcp;
+                _ ->  hackney_tcp_transport
+            end;
+        https -> 
+            code:load_file(hackney_ssl),
+            case code:is_loaded(hackney_ssl) of
+               true -> hackney_ssl;
+               _ ->  hackney_ssl_transport
+            end
     end,
     hackney:connect(Transport, Host, Port, Options);
 connect(udp, _, _, _, _) -> gen_udp:open(0);
