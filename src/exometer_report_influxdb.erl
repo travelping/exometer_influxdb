@@ -227,14 +227,14 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
         http -> 
             code:load_file(hackney_tcp),
             case code:is_loaded(hackney_tcp) of
-                true -> hackney_tcp;
-                _ ->  hackney_tcp_transport
+                false ->  hackney_tcp_transport;
+                _ -> hackney_tcp
             end;
         https -> 
             code:load_file(hackney_ssl),
             case code:is_loaded(hackney_ssl) of
-               true -> hackney_ssl;
-               _ ->  hackney_ssl_transport
+               false ->  hackney_ssl_transport;
+               _ -> hackney_ssl
             end
     end,
     hackney:connect(Transport, Host, Port, Options);
