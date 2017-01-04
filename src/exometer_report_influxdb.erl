@@ -103,6 +103,8 @@ exometer_init(Opts) ->
                     autosubscribe = Autosubscribe,
                     subscriptions_module = SubscriptionsMod,
                     metrics = maps:new()},
+    code:load_file(hackney_tcp),
+    code:load_file(hackney_ssl),
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} ->
             ?info("InfluxDB reporter connecting success: ~p", [Opts]),
@@ -225,13 +227,11 @@ connect(Proto, Host, Port, Username, Password) when ?HTTP(Proto) ->
     end ++ [{pool, false}],
     Transport = case Proto of
         http -> 
-            code:load_file(hackney_tcp),
             case code:is_loaded(hackney_tcp) of
                 false ->  hackney_tcp_transport;
                 _ -> hackney_tcp
             end;
         https -> 
-            code:load_file(hackney_ssl),
             case code:is_loaded(hackney_ssl) of
                false ->  hackney_ssl_transport;
                _ -> hackney_ssl
