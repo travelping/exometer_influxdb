@@ -35,7 +35,7 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 Available options:
 
 * __host__ - InfluxDB host. `127.0.0.1` by default.
-* __protocol__ - `http` or `udp` for operating with InfluxDB. `http` by default.
+* __protocol__ - `http`, `https` or `udp` for operating with InfluxDB. `http` by default.
 * __port__ - InfluxDB port. `8086` by default.
 * __db__ - Database on InfluxDB for writing data. `exometer` by default.
 * __username__ - Username for authorization on InfluxDB.
