@@ -88,7 +88,7 @@ exometer_init(Opts) ->
     Formatting = get_opt(formatting, Opts, ?DEFAULT_FORMATTING),
     Autosubscribe = get_opt(autosubscribe, Opts, ?DEFAULT_AUTOSUBSCRIBE),
     SubscriptionsMod = get_opt(subscriptions_module, Opts, ?DEFAULT_SUBSCRIPTIONS_MOD),
-    MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}], Tags),
+    MergedTags = merge_tags([{<<"host">>, net_adm:localhost()}, {<<"node">>, node()}], Tags),
     State =  #state{protocol = Protocol,
                     db = DB,
                     username = Username,
