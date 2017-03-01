@@ -8,6 +8,7 @@
          exometer_cast/2,
          exometer_call/3,
          exometer_report/5,
+         exometer_report_bulk/3,
          exometer_subscribe/5,
          exometer_unsubscribe/4,
          exometer_newentry/2,
@@ -135,6 +136,33 @@ exometer_report(Metric, DataPoint, _Extra, Value,
                      [Metric, Error]),
             Error
     end.
+
+exometer_report_bulk(_Found, _Extra, #state{connection = undefined} = State) ->
+    ?info("InfluxDB reporter isn't connected and will reconnect."),
+    {ok, State};
+exometer_report_bulk([{_Metric,[{_DataPoint, _Value}|_]}|_] = Found, _Extra, 
+                     #state{metrics = Metrics} = State) ->
+    {NState, Errors} = 
+        lists:foldl(
+          fun({Metric, DataPoints}, {StateAccIn, ErrorsAccIn}) -> 
+                  case maps:get(Metric, Metrics, not_found) of
+                      {MetricName, Tags} ->
+                          case maybe_send(Metric, MetricName, Tags, DataPoints, State) of
+                              {ok, NState} -> 
+                                  {NState, ErrorsAccIn};
+                              {error, Reason} -> 
+                                  {StateAccIn, [{Metric, Reason} | ErrorsAccIn]}
+                          end;
+                      Error ->
+                          ?warning("InfluxDB reporter got trouble when looking ~p metric's tag: ~p",
+                                   [Metric, Error]),
+                          {StateAccIn,[{Metric, Error} | ErrorsAccIn]}
+                  end
+          end, {State, []}, Found),
+    case Errors of 
+        [] -> {ok, NState};
+        _  -> Errors
+    end. 
 
 -spec exometer_subscribe(exometer_report:metric(),
                          exometer_report:datapoint(),
