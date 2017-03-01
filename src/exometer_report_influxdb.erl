@@ -147,7 +147,8 @@ exometer_report_bulk([{_Metric,[{_DataPoint, _Value}|_]}|_] = Found, _Extra,
           fun({Metric, DataPoints}, {StateAccIn, ErrorsAccIn}) -> 
                   case maps:get(Metric, Metrics, not_found) of
                       {MetricName, Tags} ->
-                          case maybe_send(Metric, MetricName, Tags, DataPoints, State) of
+                          case maybe_send(Metric, MetricName, Tags, 
+                                          maps:from_list(DataPoints), State) of
                               {ok, NState} -> 
                                   {NState, ErrorsAccIn};
                               {error, Reason} -> 
