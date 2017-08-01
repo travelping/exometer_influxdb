@@ -3,7 +3,7 @@
   {git,"git://github.com/boundary/bear.git",
        {ref,"119234548783af19b8ec75c879c5062676b92571"}},
   2},
- {<<"certifi">>,{pkg,<<"certifi">>,<<"1.2.1">>},1},
+ {<<"certifi">>,{pkg,<<"certifi">>,<<"2.0.0">>},1},
  {<<"exometer_core">>,
   {git,"git://github.com/Feuerlabs/exometer_core.git",
        {ref,"09c2a9361c0295c977e441ef89382db964a64460"}},
@@ -12,12 +12,12 @@
   {git,"git://github.com/folsom-project/folsom",
        {ref,"38e2cce7c64ce1f0a3a918d90394cfc0a940b1ba"}},
   1},
- {<<"hackney">>,{pkg,<<"hackney">>,<<"1.8.6">>},0},
+ {<<"hackney">>,{pkg,<<"hackney">>,<<"1.9.0">>},0},
  {<<"hut">>,
   {git,"git://github.com/tolbrino/hut.git",
        {ref,"025540398478ab6f95932c3234382ac5bb21ad3e"}},
   1},
- {<<"idna">>,{pkg,<<"idna">>,<<"5.0.2">>},1},
+ {<<"idna">>,{pkg,<<"idna">>,<<"5.1.0">>},1},
  {<<"meck">>,
   {git,"git://github.com/eproxus/meck.git",
        {ref,"70d6a33ce7407029dc59e22a5b3c1c61c1348b23"}},
@@ -33,14 +33,14 @@
        {ref,"e4a089f743505f1166e026c51989f041da7b2f6d"}},
   1},
  {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.1">>},1},
- {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.2.0">>},2}]}.
+ {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.3.1">>},2}]}.
 [
 {pkg_hash,[
- {<<"certifi">>, <<"C3904F192BD5284E5B13F20DB3CEAC9626E14EEACFBB492E19583CF0E37B22BE">>},
- {<<"hackney">>, <<"21A725DB3569B3FB11A6AF17D5C5F654052CE9624219F1317E8639183DE4A423">>},
- {<<"idna">>, <<"AC203208ADA855D95DC591A764B6E87259CB0E2A364218F215AD662DAA8CD6B4">>},
+ {<<"certifi">>, <<"A0C0E475107135F76B8C1D5BC7EFB33CD3815CB3CF3DEA7AEFDD174DABEAD064">>},
+ {<<"hackney">>, <<"51C506AFC0A365868469DCFC79A9D0B94D896EC741CFD5BD338F49A5EC515BFE">>},
+ {<<"idna">>, <<"D72B4EFFEB324AD5DA3CAB1767CB16B17939004E789D8C0AD5B70F3CEA20C89A">>},
  {<<"metrics">>, <<"25F094DEA2CDA98213CECC3AEFF09E940299D950904393B2A29D191C346A8486">>},
  {<<"mimerl">>, <<"993F9B0E084083405ED8252B99460C4F0563E41729AB42D9074FD5E52439BE88">>},
  {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>},
- {<<"unicode_util_compat">>, <<"DBBCCF6781821B1C0701845EAF966C9B6D83D7C3BFC65CA2B78B88B8678BFA35">>}]}
+ {<<"unicode_util_compat">>, <<"A1F612A7B512638634A603C8F401892AFBF99B8CE93A45041F8AACA99CADB85E">>}]}
 ].
