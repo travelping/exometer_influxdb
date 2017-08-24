@@ -26,6 +26,9 @@ evaluate_subscription_options_test() ->
     ?assertEqual({test_name, #{}},
                  evaluate_subscription_options([a, b, c], [{series_name, test_name}])),
 
+    ?assertEqual({<<"test_name">>, #{}},
+                 evaluate_subscription_options([a, b, c], [{series_name, <<"test_name">>}])),
+
     ?assertEqual({test_name, #{}},
                  evaluate_subscription_options([a, b, c], [], [], test_name, [])),
 
@@ -48,6 +51,12 @@ evaluate_subscription_options_test() ->
     ?assertEqual({[a, b, c], #{tag => b}},
                  evaluate_subscription_options([a, b, c], [{tags, [{tag, {from_name, 2}}]}], [], undefined, DefaultFormatting2)),
 
+    ok.
+
+make_packet_with_binary_time_series_test() ->
+    {Name, Tags} = evaluate_subscription_options([some, metric, id], [{series_name, <<"binary_id">>}]),
+    ?assertEqual(<<"binary_id value=1i ">>,
+                 make_bin_packet(Name, Tags, #{value => 1}, false, u)),
     ok.
 
 make_packet_without_timestamping_test() ->

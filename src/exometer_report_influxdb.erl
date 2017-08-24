@@ -59,7 +59,7 @@
                 collected_metrics = #{} :: map(),
                 batch_window_size = 0 :: integer(),
                 tags :: map(),
-                series_name :: atom(),
+                series_name :: atom() | binary(),
                 formatting :: list(),
                 metrics :: map(),
                 autosubscribe :: boolean(),
@@ -397,8 +397,9 @@ metric_elem_to_list(E) when is_binary(E) -> binary_to_list(E);
 metric_elem_to_list(E) when is_list(E) -> E;
 metric_elem_to_list(E) when is_integer(E) -> integer_to_list(E).
 
--spec name(exometer_report:metric() | atom()) -> binary().
+-spec name(exometer_report:metric() | atom() | binary()) -> binary().
 name(Metric) when is_atom(Metric) -> atom_to_binary(Metric, utf8);
+name(Metric) when is_binary(Metric) -> Metric;
 name(Metric) -> iolist_to_binary(metric_to_string(Metric)).
 
 -spec key(integer() | atom() | list() | binary()) -> binary().
