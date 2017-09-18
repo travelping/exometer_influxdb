@@ -1,6 +1,9 @@
-# Exometer InfluxDB reporter [![Build Status](https://travis-ci.org/travelping/exometer_influxdb.svg)](https://travis-ci.org/travelping/exometer_influxdb)
+# Exometer InfluxDB reporter 
 
 This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
+
+[![Build Status](https://travis-ci.org/travelping/exometer_influxdb.svg)](https://travis-ci.org/travelping/exometer_influxdb)
+[![Hex pm](http://img.shields.io/hexpm/v/exometer_influxdb.svg?style=flat)](https://hex.pm/packages/exometer_influxdb)
 
 ## Usage
 
@@ -8,7 +11,7 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 
     ```erlang
     {deps, [
-        {exometer_influxdb, ".*", {git, "https://github.com/travelping/exometer_influxdb.git", "master"}}
+        {exometer_influxdb, "0.5.7"}
     ]}.
     ```
 
