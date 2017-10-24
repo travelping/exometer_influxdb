@@ -128,7 +128,7 @@ subscribtions_module_test() ->
         ]}],
     error_logger:tty(false),
     application:set_env(lager, handlers, [{lager_console_backend, none}]),
-    application:set_env(exometer, report, Subscribers),
+    application:set_env(exometer_core, report, Subscribers),
     {ok, Apps} = application:ensure_all_started(exometer_influxdb),
 
     exometer:update_or_create([metric, test], 1, histogram, []),
