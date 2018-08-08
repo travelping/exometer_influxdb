@@ -243,7 +243,8 @@ connect(Protocol, _, _, _, _) -> {error, {Protocol, not_supported}}.
 
 -spec reconnect(state()) -> {ok, state()}.
 reconnect(#state{protocol = Protocol, host = Host, port = Port,
-                 username = Username, password = Password} = State) ->
+                 username = Username, password = Password, connection = ExistingConnection} = State) ->
+    close_connection(ExistingConnection),
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} ->
             ?info("InfluxDB reporter reconnecting success: ~p",
@@ -254,6 +255,16 @@ reconnect(#state{protocol = Protocol, host = Host, port = Port,
             prepare_reconnect(),
             {ok, State#state{connection = undefined}}
     end.
+
+-spec close_connection(undefined | gen_udp:socket() | reference()) -> ok | {error, unsupported_protocol}.
+close_connection(undefined) -> ok;
+close_connection(Connection) when is_reference(Connection) ->
+    hackney:close(Connection);
+close_connection(Connection) when is_port(Connection) ->
+    gen_udp:close(Connection);
+close_connection(Connection) ->
+    ?error("Unsupported protocol connection: ~p", [Connection]),
+    {error, unsupported_protocol}.
 
 prepare_batch_send(Time) ->
     erlang:send_after(Time, self(), {exometer_influxdb, send}).
