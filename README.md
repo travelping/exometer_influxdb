@@ -11,7 +11,7 @@ This reporter pushes data to [InfluxDB](https://influxdb.com/index.html).
 
     ```erlang
     {deps, [
-        {exometer_influxdb, "0.5.7"}
+        {exometer_influxdb, "0.6.0"}
     ]}.
     ```
 
