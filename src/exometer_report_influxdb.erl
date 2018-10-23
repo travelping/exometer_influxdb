@@ -248,7 +248,7 @@ reconnect(#state{protocol = Protocol, host = Host, port = Port,
     case connect(Protocol, Host, Port, Username, Password) of
         {ok, Connection} ->
             ?info("InfluxDB reporter reconnecting success: ~p",
-                  [{Protocol, Host, Port, Username, Password}]),
+                  [{Protocol, Host, Port, Username}]),
             {ok, State#state{connection = Connection}};
         Error ->
             ?error("InfluxDB reporter reconnecting error: ~p", [Error]),
