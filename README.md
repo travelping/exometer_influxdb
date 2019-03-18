@@ -50,7 +50,7 @@ Available options:
 
 The following options can be set globally in the reporter config or locally in a specific subscription. The latter case overwrites the first.
 
-* __tags__ - List of tags for each time series. The `host` is automatically included here.
+* __tags__ - List of tags for each time series. The `host` and `node` are automatically included here.
 * __series_name__ - The name of a time series visible within the `FROM` field. By default this is set to the concatenated elements of the exometer id. Caution: If set in the global reporter config then every time series will have this name.
 * __formatting__ - Formatting options to alter the appearance of a series name or tags.
 
